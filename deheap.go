@@ -9,10 +9,10 @@
 // and to permit persons to whom the Software is furnished to do so,
 // subject to the following conditions:
 //
-//The above copyright notice and this permission notice shall be included
+// The above copyright notice and this permission notice shall be included
 // in all copies or substantial portions of the Software.
 //
-//	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 // EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 // IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
@@ -65,19 +65,6 @@ func isMinHeap(i int) bool {
 	return level(i)%2 == 0
 }
 
-func sort3(h heap.Interface, min bool, i, j, k int) {
-	l := h.Len()
-	if j < l && k < l && min == h.Less(k, j) {
-		h.Swap(k, j)
-	}
-	if j < l && i < l && min == h.Less(j, i) {
-		h.Swap(j, i)
-	}
-	if j < l && k < l && min == h.Less(k, j) {
-		h.Swap(k, j)
-	}
-}
-
 func min4(h heap.Interface, min bool, i int) (k int) {
 	l := h.Len()
 	k = i
@@ -102,6 +89,7 @@ func min4(h heap.Interface, min bool, i int) (k int) {
 	return k
 }
 
+// min2
 func min2(h heap.Interface, min bool, i int) int {
 	if i+1 >= h.Len() {
 		return i
@@ -112,33 +100,62 @@ func min2(h heap.Interface, min bool, i int) int {
 	return i + 1
 }
 
-func bubbledown(h heap.Interface, min bool, i int) {
+// min3
+func min3(h heap.Interface, min bool, i, j, k int) int {
+	q := i
+	if j < h.Len() && h.Less(j, q) == min {
+		q = j
+	}
+	if k < h.Len() && h.Less(k, q) == min {
+		q = k
+	}
+	return q
+}
+
+// bubbledown
+func bubbledown(h heap.Interface, min bool, i int) (q int, r int) {
 	l := h.Len()
+	q = i
+	r = i
 	for {
+		// find min of children
 		j := min2(h, min, hlchild(i))
 		if j >= l {
 			break
 		}
-		if min == h.Less(j, i) {
-			h.Swap(j, i)
-		}
-		j = min4(h, min, lchild(i))
-		if j >= l {
+		// find min of grandchildren
+		k := min4(h, min, lchild(i))
+		// swap of less than the element at i
+		v := min3(h, min, i, j, k)
+		if v == i || v >= l {
 			break
 		}
-		if min == h.Less(j, i) {
-			h.Swap(j, i)
+		if v == j {
+			h.Swap(v, i)
+			q = v
+			break
 		}
-		i = j
+		// v == k
+		q = v
+		h.Swap(v, i)
+		p := hparent(v)
+		if h.Less(p, v) == min {
+			h.Swap(p, v)
+			r = p
+		}
+		i = v
 	}
+	return q, r
 }
 
-func bubbleup(h heap.Interface, min bool, i int) {
+// bubbleup
+func bubbleup(h heap.Interface, min bool, i int) (q bool) {
 	if i < 0 {
-		return
+		return false
 	}
 	j := parent(i)
 	for j >= 0 && min == h.Less(i, j) {
+		q = true
 		h.Swap(i, j)
 		i = j
 		j = parent(i)
@@ -146,14 +163,16 @@ func bubbleup(h heap.Interface, min bool, i int) {
 	min = !min
 	j = hparent(i)
 	for j >= 0 && min == h.Less(i, j) {
+		q = true
 		h.Swap(i, j)
 		i = j
 		j = parent(i)
 	}
+	return q
 }
 
 // Pop the smallest value off the heap.  See heap.Pop().
-// Time complexity is O(log_2 n), where n = h.Len()
+// Time complexity is O(log n), where n = h.Len()
 func Pop(h heap.Interface) interface{} {
 	h.Swap(0, h.Len()-1)
 	q := h.Pop()
@@ -162,7 +181,7 @@ func Pop(h heap.Interface) interface{} {
 }
 
 // Pop the largest value off the heap.  See heap.Pop().
-// Time complexity is O(log_2 n), where n = h.Len()
+// Time complexity is O(log n), where n = h.Len()
 func PopMax(h heap.Interface) interface{} {
 	l := h.Len() - 1
 	j := 0
@@ -175,8 +194,22 @@ func PopMax(h heap.Interface) interface{} {
 	return q
 }
 
+// Remove element at index i.  See heap.Remove().
+// The complexity is O(log n) where n = h.Len().
+func Remove(h heap.Interface, i int) (q interface{}) {
+	n := h.Len() - 1
+	h.Swap(i, n)
+	q = h.Pop()
+	if n != i {
+		q, r := bubbledown(h, isMinHeap(i), i)
+		bubbleup(h, isMinHeap(q), q)
+		bubbleup(h, isMinHeap(r), r)
+	}
+	return q
+}
+
 // Push an element onto the heap.  See heap.Push()
-// Time complexity is O(log_2 n), where n = h.Len()
+// Time complexity is O(log n), where n = h.Len()
 func Push(h heap.Interface, o interface{}) {
 	h.Push(o)
 	l := h.Len() - 1
