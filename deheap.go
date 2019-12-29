@@ -54,7 +54,7 @@ func parent(i int) int {
 }
 
 func lchild(i int) int {
-	return ((i + 1) * 4) - 1
+	return ((i + 1 ) * 4) - 1
 }
 
 func level(i int) int {
@@ -62,36 +62,38 @@ func level(i int) int {
 }
 
 func isMinHeap(i int) bool {
-	return level(i)%2 == 0
+	return level(i) % 2 == 0
 }
 
-func min4(h heap.Interface, min bool, i int) (k int) {
-	l := h.Len()
-	k = i
-	if i+1 >= l {
-		return k
+func min4(h heap.Interface, l int, min bool, i int)  int {
+	q := i
+	i++
+	if i >= l {
+		return q
 	}
-	if min == h.Less(i+1, k) {
-		k = i + 1
+	if min == h.Less(i, q) {
+		q = i
 	}
-	if i+2 >= l {
-		return k
+	i++
+	if i >= l {
+		return q
 	}
-	if min == h.Less(i+2, k) {
-		k = i + 2
+	if min == h.Less(i, q) {
+		q = i
 	}
-	if i+3 >= l {
-		return k
+	i++
+	if i >= l {
+		return q
 	}
-	if min == h.Less(i+3, k) {
-		k = i + 3
+	if min == h.Less(i, q) {
+		q = i
 	}
-	return k
+	return q
 }
 
 // min2
-func min2(h heap.Interface, min bool, i int) int {
-	if i+1 >= h.Len() {
+func min2(h heap.Interface, l int, min bool, i int) int {
+	if i+1 >= l {
 		return i
 	}
 	if min != h.Less(i+1, i) {
@@ -101,43 +103,40 @@ func min2(h heap.Interface, min bool, i int) int {
 }
 
 // min3
-func min3(h heap.Interface, min bool, i, j, k int) int {
+func min3(h heap.Interface, l int, min bool, i, j, k int) int {
 	q := i
-	if j < h.Len() && h.Less(j, q) == min {
+	if j < l && h.Less(j, q) == min {
 		q = j
 	}
-	if k < h.Len() && h.Less(k, q) == min {
+	if k < l && h.Less(k, q) == min {
 		q = k
 	}
 	return q
 }
 
 // bubbledown
-func bubbledown(h heap.Interface, min bool, i int) (q int, r int) {
-	l := h.Len()
+func bubbledown(h heap.Interface, l int, min bool, i int) (q int, r int) {
 	q = i
 	r = i
 	for {
 		// find min of children
-		j := min2(h, min, hlchild(i))
+		j := min2(h, l, min, hlchild(i))
 		if j >= l {
 			break
 		}
 		// find min of grandchildren
-		k := min4(h, min, lchild(i))
+		k := min4(h, l, min, lchild(i))
 		// swap of less than the element at i
-		v := min3(h, min, i, j, k)
+		v := min3(h, l, min, i, j, k)
 		if v == i || v >= l {
-			break
-		}
-		if v == j {
-			h.Swap(v, i)
-			q = v
 			break
 		}
 		// v == k
 		q = v
 		h.Swap(v, i)
+		if v == j {
+			break
+		}
 		p := hparent(v)
 		if h.Less(p, v) == min {
 			h.Swap(p, v)
@@ -174,34 +173,36 @@ func bubbleup(h heap.Interface, min bool, i int) (q bool) {
 // Pop the smallest value off the heap.  See heap.Pop().
 // Time complexity is O(log n), where n = h.Len()
 func Pop(h heap.Interface) interface{} {
-	h.Swap(0, h.Len()-1)
+	l := h.Len()-1
+	h.Swap(0, l)
 	q := h.Pop()
-	bubbledown(h, true, 0)
+	bubbledown(h, l, true, 0)
 	return q
 }
 
 // Pop the largest value off the heap.  See heap.Pop().
 // Time complexity is O(log n), where n = h.Len()
 func PopMax(h heap.Interface) interface{} {
-	l := h.Len() - 1
+	l := h.Len()
 	j := 0
-	if l > 0 {
-		j = min2(h, false, 1)
+	if l > 1 {
+		j = min2(h, l,false, 1)
 	}
+	l = l - 1
 	h.Swap(j, l)
 	q := h.Pop()
-	bubbledown(h, false, j)
+	bubbledown(h, l,false, j)
 	return q
 }
 
 // Remove element at index i.  See heap.Remove().
 // The complexity is O(log n) where n = h.Len().
 func Remove(h heap.Interface, i int) (q interface{}) {
-	n := h.Len() - 1
-	h.Swap(i, n)
+	l := h.Len() - 1
+	h.Swap(i, l)
 	q = h.Pop()
-	if n != i {
-		q, r := bubbledown(h, isMinHeap(i), i)
+	if l != i {
+		q, r := bubbledown(h, l, isMinHeap(i), i)
 		bubbleup(h, isMinHeap(q), q)
 		bubbleup(h, isMinHeap(r), r)
 	}
@@ -212,14 +213,16 @@ func Remove(h heap.Interface, i int) (q interface{}) {
 // Time complexity is O(log n), where n = h.Len()
 func Push(h heap.Interface, o interface{}) {
 	h.Push(o)
-	l := h.Len() - 1
-	bubbleup(h, isMinHeap(l), l)
+	l := h.Len()
+	i := l - 1
+	bubbleup(h, isMinHeap(i), i)
 }
 
 // Init initializes the heap.
 // This should be called once on non-empty heaps before calling Pop(), PopMax() or Push().  See heap.Init()
 func Init(h heap.Interface) {
-	for i := 0; i < h.Len(); i++ {
+	l := h.Len()
+	for i := 0; i < l; i++ {
 		bubbleup(h, isMinHeap(i), i)
 	}
 }
