@@ -12,3 +12,6 @@
 
 # Fuzz cache
 testdata/fuzz/
+
+# IDE files
+.idea
