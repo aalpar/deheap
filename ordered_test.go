@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Aaron H. Alpar
+// Copyright 2019-2026 Aaron H. Alpar
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files
@@ -506,5 +506,80 @@ func TestOrderedNew(t *testing.T) {
 	}
 	if v := h.PopMax(); v != 3.14 {
 		t.Fatalf("PopMax = %v, want 3.14", v)
+	}
+}
+
+func BenchmarkOrderedPush(b *testing.B) {
+	r := make([]int, b.N)
+	for i := range r {
+		r[i] = i
+	}
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	s.Shuffle(len(r), func(i, j int) { r[i], r[j] = r[j], r[i] })
+
+	b.ResetTimer()
+
+	h := New[int]()
+	for _, q := range r {
+		h.Push(q)
+	}
+}
+
+func BenchmarkOrderedPop(b *testing.B) {
+	r := make([]int, b.N)
+	for i := range r {
+		r[i] = i
+	}
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	s.Shuffle(len(r), func(i, j int) { r[i], r[j] = r[j], r[i] })
+
+	h := New[int]()
+	for _, q := range r {
+		h.Push(q)
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		h.Pop()
+	}
+}
+
+func BenchmarkOrderedPopMax(b *testing.B) {
+	r := make([]int, b.N)
+	for i := range r {
+		r[i] = i
+	}
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	s.Shuffle(len(r), func(i, j int) { r[i], r[j] = r[j], r[i] })
+
+	h := New[int]()
+	for _, q := range r {
+		h.Push(q)
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		h.PopMax()
+	}
+}
+
+func BenchmarkOrderedPushPop(b *testing.B) {
+	r := make([]int, b.N)
+	for i := range r {
+		r[i] = i
+	}
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	s.Shuffle(len(r), func(i, j int) { r[i], r[j] = r[j], r[i] })
+
+	b.ResetTimer()
+
+	h := New[int]()
+	for _, q := range r {
+		h.Push(q)
+	}
+	for i := 0; i < b.N; i++ {
+		h.Pop()
 	}
 }

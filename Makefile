@@ -4,7 +4,6 @@ GO_BUILD=$(GO) build
 GO_TEST=$(GO) test
 GO_VET=$(GO) vet
 GO_BENCH=$(GO_TEST) -bench .
-GO_TEST=$(GO) test
 GIT=git
 SH_TOOLS_DIR=./tools/sh
 BUILD_VERSION:=$(shell cat ./VERSION 2>/dev/null || echo "0.0.0")
