@@ -162,12 +162,43 @@ Measured on Apple M4 Max (arm64), Go 1.23:
 | Push        | 22     | 55   | 0         |
 | Pop         | 208    | 7    | 0         |
 
-The generic API is faster than `container/heap` on Push and competitive on
-Pop despite examining grandchildren (up to four per node vs two). The v1
-interface API pays the same `heap.Interface` dispatch cost as `container/heap`.
-All operations are zero-allocation in steady state.
+The generic API is faster than `container/heap` on Push. Pop is ~8% slower
+due to examining up to four grandchildren per node (vs two children in a
+binary heap), but provides O(log n) access to both extrema. The v1 interface
+API pays the same `heap.Interface` dispatch cost as `container/heap`. All
+operations are zero-allocation in steady state.
 
 #### Benchmark descriptions
+
+The benchmarks compare deheap's two API surfaces against each other and
+against `container/heap`. Baseline measurements isolate the cost of slice
+operations from heap logic. All benchmarks use a heap of 10,000 `int`
+elements to ensure the working set fits in L1 cache while exercising the
+full tree depth.
+
+Sample run (Apple M4 Max, Go 1.23):
+
+```
+$ go test -bench . -benchmem
+goos: darwin
+goarch: arm64
+pkg: github.com/aalpar/deheap
+cpu: Apple M4 Max
+BenchmarkMin4-16              	261428533	         4.784 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBaselinePush-16      	1000000000	         6.411 ns/op	      42 B/op	       0 allocs/op
+BenchmarkPush-16              	44383689	        23.16 ns/op	      50 B/op	       0 allocs/op
+BenchmarkPop-16               	 5666707	       326.3 ns/op	       7 B/op	       0 allocs/op
+BenchmarkPopMax-16            	 5644575	       319.7 ns/op	       7 B/op	       0 allocs/op
+BenchmarkPushPop-16           	 5098502	       297.2 ns/op	      65 B/op	       1 allocs/op
+BenchmarkHeapPushPop-16       	 6203408	       256.5 ns/op	      56 B/op	       1 allocs/op
+BenchmarkHeapPop-16           	 8475319	       234.7 ns/op	       7 B/op	       0 allocs/op
+BenchmarkHeapPush-16          	46837188	        21.57 ns/op	      48 B/op	       0 allocs/op
+BenchmarkOrderedPush-16       	100000000	        12.38 ns/op	      45 B/op	       0 allocs/op
+BenchmarkOrderedPop-16        	 8680756	       249.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOrderedPopMax-16     	10103798	       237.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOrderedPushPop-16    	 8926204	       233.2 ns/op	      44 B/op	       0 allocs/op
+PASS
+```
 
 | Benchmark | What it measures |
 |-----------|-----------------|
