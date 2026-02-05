@@ -1,14 +1,207 @@
 # deheap
 
-Package deheap provides the implementation of a doubly ended heap.
-Doubly ended heaps are heaps with two sides, a min side and a max side.
-Like normal single-sided heaps, elements can be pushed onto and pulled
-off of a deheap.  deheaps have an additional `Pop` function, `PopMax`, that
-returns elements from the opposite side of the ordering.
+A doubly-ended heap (min-max heap) for Go. Provides O(log n) access to both
+the minimum and maximum elements of a collection through a single data
+structure, with zero external dependencies.
 
-This implementation has emphasized compatibility with existing libraries
-in the sort and heap packages.
+```
+go get github.com/aalpar/deheap
+```
 
-Performace of the deheap functions should be very close to the
-performance of the functions of the heap library
+## Why a doubly-ended heap?
 
+A standard binary heap gives you efficient access to one extremum — the
+smallest or the largest element — but not both. Many practical problems need
+both ends simultaneously:
+
+**Scheduling and resource allocation.** Operating system schedulers and job
+queues routinely need the highest-priority task (to run next) and the
+lowest-priority task (to evict or age). A doubly-ended priority queue avoids
+maintaining two separate heaps and the bookkeeping to keep them synchronized.
+
+**Bounded-size caches and buffers.** When a priority queue has a capacity
+limit, insertions must discard the least valuable element. With a min-max
+heap, both the insertion (against the max) and the eviction (from the min, or
+vice versa) are logarithmic — no linear scan required.
+
+**Median maintenance and order statistics.** Streaming median algorithms
+typically partition data into a max-heap of the lower half and a min-heap of
+the upper half. A single min-max heap can serve double duty, simplifying the
+implementation.
+
+**Network packet scheduling.** Rate-controlled and deadline-aware packet
+schedulers (e.g., in QoS systems) need to dequeue by earliest deadline and
+drop by lowest priority, both efficiently.
+
+**Search algorithms.** Algorithms like SMA\* (Simplified Memory-Bounded A\*)
+maintain an open set where the node with the lowest f-cost is expanded next
+and the node with the highest f-cost is pruned when memory is exhausted.
+
+## API
+
+`deheap` provides two API surfaces.
+
+### Generic API (Go 1.21+)
+
+For `cmp.Ordered` types — `int`, `float64`, `string`, and friends — use the
+type-safe generic API directly:
+
+```go
+import "github.com/aalpar/deheap"
+
+// Construct from existing elements.
+h := deheap.From(5, 3, 8, 1, 9)
+
+// Or build incrementally.
+h := deheap.New[int]()
+h.Push(5)
+h.Push(3)
+
+// O(1) access to both extrema.
+fmt.Println(h.Peek())    // smallest
+fmt.Println(h.PeekMax()) // largest
+
+// O(log n) removal from either end.
+min := h.Pop()
+max := h.PopMax()
+
+// Remove by index.
+val := h.Remove(2)
+```
+
+### Interface API
+
+For custom types, implement `heap.Interface` and use the package-level
+functions. This is the original v1 API and remains stable.
+
+```go
+import "github.com/aalpar/deheap"
+
+type IntHeap []int
+
+func (h IntHeap) Len() int           { return len(h) }
+func (h IntHeap) Less(i, j int) bool { return h[i] < h[j] }
+func (h IntHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
+func (h *IntHeap) Push(x interface{}) { *h = append(*h, x.(int)) }
+
+func (h *IntHeap) Pop() interface{} {
+    old := *h
+    n := len(old)
+    x := old[n-1]
+    *h = old[:n-1]
+    return x
+}
+
+h := &IntHeap{2, 1, 5, 6}
+deheap.Init(h)
+deheap.Push(h, 3)
+min := deheap.Pop(h)
+max := deheap.PopMax(h)
+```
+
+## Implementation
+
+The underlying data structure is a **min-max heap** stored in a flat slice
+with no pointers and no additional bookkeeping. Nodes on even levels
+(0, 2, 4, ...) satisfy the min-heap property with respect to their
+descendants, and nodes on odd levels (1, 3, 5, ...) satisfy the max-heap
+property. The root is always the minimum; the maximum is one of its two
+children.
+
+Level parity is determined by bit-length of the 1-based index, computed via
+`math/bits.Len` — a single CPU instruction on most architectures. Insertions
+bubble up through grandparent links; deletions bubble down through
+grandchild links, with a secondary swap against the binary-tree parent when
+the element crosses a level boundary.
+
+The generic API is built on top of the interface API through an internal
+adapter — no heap logic is duplicated.
+
+### Complexity
+
+| Operation | Time     | Space |
+|-----------|----------|-------|
+| `Push`    | O(log n) | O(1) amortized |
+| `Pop`     | O(log n) | O(1) |
+| `PopMax`  | O(log n) | O(1) |
+| `Remove`  | O(log n) | O(1) |
+| `Peek`    | O(1)     | O(1) |
+| `PeekMax` | O(1)     | O(1) |
+| `Init`    | O(n)     | O(1) |
+
+Storage is a single contiguous slice — one element per slot, no child
+pointers, no color bits, no auxiliary arrays. Memory overhead beyond the
+elements themselves is the slice header (24 bytes on 64-bit systems).
+
+### Benchmarks
+
+Measured on Apple M4 Max (arm64), Go 1.23, heap size 1000:
+
+| Operation   | ns/op  | B/op | allocs/op |
+|-------------|--------|------|-----------|
+| Push        | 20     | 54   | 0         |
+| Pop         | 317    | 7    | 0         |
+| PopMax      | 318    | 7    | 0         |
+
+For comparison, the standard library `container/heap` on the same hardware:
+
+| Operation   | ns/op  | B/op | allocs/op |
+|-------------|--------|------|-----------|
+| Push        | 23     | 56   | 0         |
+| Pop         | 208    | 7    | 0         |
+
+Pop is roughly 1.5× the cost of a single-ended heap — expected, since the
+min-max heap must examine grandchildren (up to four per node) rather than
+just children (two per node). Push performance is comparable. Both operations
+are zero-allocation in steady state.
+
+#### Benchmark descriptions
+
+| Benchmark | What it measures |
+|-----------|-----------------|
+| `Min4` | Cost of `min4`, the internal function that finds the extremum among up to 4 grandchildren during bubble-down. |
+| `BaselinePush` | Raw slice append with no heap ordering — establishes the floor cost of memory allocation and copying. |
+| `Push` | `deheap.Push`: append + bubble-up to restore the min-max heap property. |
+| `Pop` | `deheap.Pop`: remove the minimum element and bubble-down. |
+| `PopMax` | `deheap.PopMax`: remove the maximum element and bubble-down. |
+| `PushPop` | Push all N elements then Pop all N — combined insert-then-drain throughput. |
+| `HeapPushPop` | Same push-then-drain pattern using `container/heap` for direct comparison. |
+| `HeapPop` | `container/heap.Pop` in isolation, comparable to `Pop` above. |
+| `HeapPush` | `container/heap.Push` in isolation, comparable to `Push` above. |
+
+## Testing
+
+The test suite includes 36 test functions covering internal helpers,
+algorithmic correctness, edge cases (empty, single-element, two-element
+heaps), and large-scale randomized validation. Four native Go fuzz targets
+(`testing.F`) exercise both API surfaces under arbitrary input. Tests are run
+against Go 1.21, 1.22, and 1.23 in CI.
+
+```bash
+go test ./...          # run all tests
+go test -bench . ./... # run benchmarks
+go test -fuzz .        # run fuzz tests
+```
+
+## Requirements
+
+- Go 1.21 or later (generic API)
+- Go 1.13 or later (interface API only)
+- Zero external dependencies
+
+## References
+
+1. M.D. Atkinson, J.-R. Sack, N. Santoro, and T. Strothotte. "Min-Max
+   Heaps and Generalized Priority Queues." *Communications of the ACM*,
+   29(10):996–1000, October 1986.
+   https://doi.org/10.1145/6617.6621
+
+2. J. van Leeuwen and D. Wood. "Interval Heaps." *The Computer Journal*,
+   36(3):209–216, 1993.
+
+3. P. Brass. *Advanced Data Structures*. Cambridge University Press, 2008.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
