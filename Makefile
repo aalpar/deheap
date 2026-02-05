@@ -35,7 +35,8 @@ clean:
 #   make tag
 .PHONY: tag
 tag:
-	$(GIT) tag -a $(BUILD_VERSION) -m "Release $(BUILD_VERSION)"
+	@echo "$(BUILD_VERSION)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9_.-]+)?$$' || (echo "Error: invalid version '$(BUILD_VERSION)'"; exit 1)
+	$(GIT) tag -a "$(BUILD_VERSION)" -m "Release $(BUILD_VERSION)"
 	@echo "Created tag $(BUILD_VERSION)"
 
 # Bump the major version in VERSION (resets minor and patch to 0).

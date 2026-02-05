@@ -115,8 +115,9 @@ bubble up through grandparent links; deletions bubble down through
 grandchild links, with a secondary swap against the binary-tree parent when
 the element crosses a level boundary.
 
-The generic API is built on top of the interface API through an internal
-adapter — no heap logic is duplicated.
+The generic API implements the same algorithms directly on `[]T` with
+native `<` comparisons, eliminating interface dispatch, adapter allocation,
+and boxing overhead.
 
 ### Complexity
 
