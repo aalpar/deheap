@@ -136,36 +136,50 @@ elements themselves is the slice header (24 bytes on 64-bit systems).
 
 ### Benchmarks
 
-Measured on Apple M4 Max (arm64), Go 1.23, heap size 1000:
+Measured on Apple M4 Max (arm64), Go 1.23:
+
+**Generic API** (`Deheap[T]` — direct `<` comparisons, no interface dispatch):
 
 | Operation   | ns/op  | B/op | allocs/op |
 |-------------|--------|------|-----------|
-| Push        | 20     | 54   | 0         |
-| Pop         | 317    | 7    | 0         |
-| PopMax      | 318    | 7    | 0         |
+| Push        | 12     | 45   | 0         |
+| Pop         | 225    | 0    | 0         |
+| PopMax      | 225    | 0    | 0         |
 
-For comparison, the standard library `container/heap` on the same hardware:
+**Interface API** (v1 — `heap.Interface`):
 
 | Operation   | ns/op  | B/op | allocs/op |
 |-------------|--------|------|-----------|
-| Push        | 23     | 56   | 0         |
+| Push        | 21     | 54   | 0         |
+| Pop         | 288    | 7    | 0         |
+| PopMax      | 282    | 7    | 0         |
+
+**Standard library** (`container/heap`) for comparison:
+
+| Operation   | ns/op  | B/op | allocs/op |
+|-------------|--------|------|-----------|
+| Push        | 22     | 55   | 0         |
 | Pop         | 208    | 7    | 0         |
 
-Pop is roughly 1.5× the cost of a single-ended heap — expected, since the
-min-max heap must examine grandchildren (up to four per node) rather than
-just children (two per node). Push performance is comparable. Both operations
-are zero-allocation in steady state.
+The generic API is faster than `container/heap` on Push and competitive on
+Pop despite examining grandchildren (up to four per node vs two). The v1
+interface API pays the same `heap.Interface` dispatch cost as `container/heap`.
+All operations are zero-allocation in steady state.
 
 #### Benchmark descriptions
 
 | Benchmark | What it measures |
 |-----------|-----------------|
+| `OrderedPush` | Generic `Deheap[int].Push`: append + bubble-up with direct `<` comparisons. |
+| `OrderedPop` | Generic `Deheap[int].Pop`: remove minimum and bubble-down with direct `<`. |
+| `OrderedPopMax` | Generic `Deheap[int].PopMax`: remove maximum and bubble-down with direct `<`. |
+| `OrderedPushPop` | Generic push-then-drain throughput. |
 | `Min4` | Cost of `min4`, the internal function that finds the extremum among up to 4 grandchildren during bubble-down. |
 | `BaselinePush` | Raw slice append with no heap ordering — establishes the floor cost of memory allocation and copying. |
-| `Push` | `deheap.Push`: append + bubble-up to restore the min-max heap property. |
-| `Pop` | `deheap.Pop`: remove the minimum element and bubble-down. |
-| `PopMax` | `deheap.PopMax`: remove the maximum element and bubble-down. |
-| `PushPop` | Push all N elements then Pop all N — combined insert-then-drain throughput. |
+| `Push` | `deheap.Push` (v1): append + bubble-up via `heap.Interface`. |
+| `Pop` | `deheap.Pop` (v1): remove the minimum element and bubble-down via `heap.Interface`. |
+| `PopMax` | `deheap.PopMax` (v1): remove the maximum element and bubble-down via `heap.Interface`. |
+| `PushPop` | v1 push-then-drain throughput. |
 | `HeapPushPop` | Same push-then-drain pattern using `container/heap` for direct comparison. |
 | `HeapPop` | `container/heap.Pop` in isolation, comparable to `Pop` above. |
 | `HeapPush` | `container/heap.Push` in isolation, comparable to `Push` above. |
