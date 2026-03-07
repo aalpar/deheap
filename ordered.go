@@ -137,9 +137,9 @@ func (p *Deheap[T]) Peek() T {
 // one element the root is both min and max; with two elements the
 // sole child at index 1 is the max.
 //
-//	         1          ← min (root)
-//	       /   \
-//	     [9]    5       ← max is the larger child
+//	    1          ← min (root)
+//	  /   \
+//	[9]    5       ← max is the larger child
 func (p *Deheap[T]) PeekMax() T {
 	if len(p.items) <= 1 {
 		return p.items[0]

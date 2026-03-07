@@ -1,4 +1,3 @@
-//
 // Copyright 2019-2026 Aaron H. Alpar
 //
 // Permission is hereby granted, free of charge, to any person obtaining
@@ -19,7 +18,6 @@
 // CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 // SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-//
 package deheap
 
 import (
@@ -173,18 +171,18 @@ func TestMin2(t *testing.T) {
 	}
 
 	h = &IntHeap{1, 10}
-	x = min2(h,  h.Len(),true, 0)
+	x = min2(h, h.Len(), true, 0)
 	if x != 0 {
 		t.Fatalf("unexpected value")
 	}
 
-	x = min2(h,  h.Len(),false, 9)
+	x = min2(h, h.Len(), false, 9)
 	if x != 9 {
 		t.Fatalf("unexpected value")
 	}
 
 	h = &IntHeap{10, 10}
-	x = min2(h,  h.Len(),true, 0)
+	x = min2(h, h.Len(), true, 0)
 	if x != 0 {
 		t.Fatalf("unexpected value")
 	}
@@ -244,31 +242,31 @@ func TestBubbleUp(t *testing.T) {
 func TestBubbleDown(t *testing.T) {
 
 	h := &IntHeap{15, 1, 2}
-	bubbledown(h,  h.Len(),isMinHeap(0), 0)
+	bubbledown(h, h.Len(), isMinHeap(0), 0)
 	if !reflect.DeepEqual(h, &IntHeap{1, 15, 2}) {
 		t.Fatalf("unexpected value: %v", h)
 	}
 
 	h = &IntHeap{5, 7, 4, 6, 1, 3, 2}
-	bubbledown(h,  h.Len(),isMinHeap(0), 0)
+	bubbledown(h, h.Len(), isMinHeap(0), 0)
 	if !reflect.DeepEqual(h, &IntHeap{1, 7, 4, 6, 5, 3, 2}) {
 		t.Fatalf("unexpected value: %v", h)
 	}
 
 	h = &IntHeap{10, 8, 12, 1, 2, 9, 10, 5, 3, 4, 6, 11}
-	bubbledown(h,  h.Len(),isMinHeap(0), 0)
+	bubbledown(h, h.Len(), isMinHeap(0), 0)
 	if !reflect.DeepEqual(h, &IntHeap{1, 10, 12, 3, 2, 9, 10, 5, 8, 4, 6, 11}) {
 		t.Fatalf("unexpected value: %v", h)
 	}
 
 	h = &IntHeap{14, 15, 12, 4, 2, 3, 5, 13}
-	bubbledown(h,  h.Len(),isMinHeap(0), 0)
+	bubbledown(h, h.Len(), isMinHeap(0), 0)
 	if _, _, ok := isHeap(t, h); !ok {
 		t.Fatalf("unexpected value: %v", h)
 	}
 
 	h = &IntHeap{13, 14, 15, 3, 4, 5, 6, 7, 8, 9, 10}
-	bubbledown(h,  h.Len(),isMinHeap(0), 0)
+	bubbledown(h, h.Len(), isMinHeap(0), 0)
 	if _, _, ok := isHeap(t, h); !ok {
 		t.Fatalf("unexpected value: %v", h)
 	}
@@ -280,13 +278,13 @@ func TestBubbleDown(t *testing.T) {
 // single-element slice (exercises early-return branches).
 func TestMin4(t *testing.T) {
 	h := &IntHeap{3, 1, 2, 4}
-	x := min4(h,  h.Len(),true, 0)
+	x := min4(h, h.Len(), true, 0)
 	if x != 1 {
 		t.Fatalf("unexpected value")
 	}
 
 	h = &IntHeap{1, 3, 2, 4}
-	x = min4(h,  h.Len(),true, 0)
+	x = min4(h, h.Len(), true, 0)
 	if x != 0 {
 		t.Fatalf("unexpected value")
 	}
@@ -298,7 +296,7 @@ func TestMin4(t *testing.T) {
 	}
 
 	h = &IntHeap{2, 3, 4, 1}
-	x = min4(h,  h.Len(),true, 0)
+	x = min4(h, h.Len(), true, 0)
 	if x != 3 {
 		t.Fatalf("unexpected value")
 	}
@@ -310,13 +308,13 @@ func TestMin4(t *testing.T) {
 	}
 
 	h = &IntHeap{2, 2, 1, 1}
-	x = min4(h,  h.Len(),true, 0)
+	x = min4(h, h.Len(), true, 0)
 	if x != 2 {
 		t.Fatalf("unexpected value")
 	}
 
 	h = &IntHeap{2}
-	x = min4(h,  h.Len(),true, 0)
+	x = min4(h, h.Len(), true, 0)
 	if x != 0 {
 		t.Fatalf("unexpected value")
 	}
@@ -327,37 +325,37 @@ func TestMin4(t *testing.T) {
 // out-of-bounds indices.
 func TestMin3(t *testing.T) {
 	h := &IntHeap{3, 1, 2}
-	x := min3(h,  h.Len(),true, 0, 1, 2)
+	x := min3(h, h.Len(), true, 0, 1, 2)
 	if x != 1 {
 		t.Fatalf("unexpected value")
 	}
 
 	h = &IntHeap{1, 3, 2}
-	x = min3(h,  h.Len(),true, 0, 1, 2)
+	x = min3(h, h.Len(), true, 0, 1, 2)
 	if x != 0 {
 		t.Fatalf("unexpected value")
 	}
 
 	h = &IntHeap{2, 3, 1}
-	x = min3(h,  h.Len(),true, 0, 1, 2)
+	x = min3(h, h.Len(), true, 0, 1, 2)
 	if x != 2 {
 		t.Fatalf("unexpected value")
 	}
 
 	h = &IntHeap{1, 1, 2}
-	x = min3(h,  h.Len(),true, 0, 1, 2)
+	x = min3(h, h.Len(), true, 0, 1, 2)
 	if x != 0 && x != 1 {
 		t.Fatalf("unexpected value")
 	}
 
 	h = &IntHeap{2, 1, 1}
-	x = min3(h,  h.Len(),true, 0, 1, 2)
+	x = min3(h, h.Len(), true, 0, 1, 2)
 	if x != 2 && x != 1 {
 		t.Fatalf("unexpected value")
 	}
 
 	h = &IntHeap{2}
-	x = min3(h,  h.Len(),true, 0, 1, 2)
+	x = min3(h, h.Len(), true, 0, 1, 2)
 	if x != 0 {
 		t.Fatalf("unexpected value")
 	}

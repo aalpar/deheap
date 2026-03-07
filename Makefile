@@ -27,6 +27,14 @@ bench:
 vet:
 	$(GO_VET) ./...
 
+.PHONY: docker-build
+docker-build:
+	docker build --target build -t $(PROJECT):build .
+
+.PHONY: docker-test
+docker-test:
+	docker build --target test -t $(PROJECT):test .
+
 .PHONY: clean
 clean:
 	$(GO) clean -cache -testcache -fuzzcache
@@ -38,6 +46,13 @@ tag:
 	@echo "$(BUILD_VERSION)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9_.-]+)?$$' || (echo "Error: invalid version '$(BUILD_VERSION)'"; exit 1)
 	$(GIT) tag -a "$(BUILD_VERSION)" -m "Release $(BUILD_VERSION)"
 	@echo "Created tag $(BUILD_VERSION)"
+
+# Run all checks, tag, and push to trigger the GitHub release workflow.
+#   make release
+.PHONY: release
+release: all docker-test tag
+	$(GIT) push origin "$(BUILD_VERSION)"
+	@echo "Pushed $(BUILD_VERSION) — GitHub release workflow triggered"
 
 # Bump the major version in VERSION (resets minor and patch to 0).
 #   make bump-major

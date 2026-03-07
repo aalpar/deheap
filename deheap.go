@@ -21,7 +21,6 @@
 // SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-//
 // Package deheap provides a doubly-ended heap (min-max heap).
 //
 // A min-max heap gives O(log n) access to both the smallest AND largest
@@ -131,7 +130,6 @@
 //	         4  6  5
 //
 //	Done. Returned 1 (the old minimum). New minimum is 3.
-//
 package deheap
 
 import (
@@ -141,22 +139,22 @@ import (
 
 // hparent returns the binary-tree parent of node i.
 //
-//	          0
-//	        /   \
-//	       1     2        hparent(5) = (5-1)/2 = 2
-//	      / \   / \
-//	     3   4 5   6
+//	     0
+//	   /   \
+//	  1     2        hparent(5) = (5-1)/2 = 2
+//	 / \   / \
+//	3   4 5   6
 func hparent(i int) int {
 	return (i - 1) / 2
 }
 
 // hlchild returns the left child of node i in the binary tree.
 //
-//	          0
-//	        /   \
-//	       1     2        hlchild(1) = (1*2)+1 = 3
-//	      / \   / \
-//	     3   4 5   6
+//	     0
+//	   /   \
+//	  1     2        hlchild(1) = (1*2)+1 = 3
+//	 / \   / \
+//	3   4 5   6
 func hlchild(i int) int {
 	return (i * 2) + 1
 }
@@ -200,7 +198,7 @@ func level(i int) int {
 //	Level 1 (max):    1  2        isMinHeap(1) = false
 //	Level 2 (min):   3 4 5 6      isMinHeap(3) = true
 func isMinHeap(i int) bool {
-	return level(i) % 2 == 0
+	return level(i)%2 == 0
 }
 
 // min4 finds the extremum among up to 4 consecutive elements starting at
@@ -208,11 +206,11 @@ func isMinHeap(i int) bool {
 // Used to scan the grandchildren of a node during bubbledown — a node can
 // have at most 4 grandchildren, stored contiguously at lchild(i)..lchild(i)+3.
 //
-//	           i
-//	         /   \
-//	       c0     c1        ← children (scanned by min2)
-//	      / \    / \
-//	    g0  g1  g2  g3      ← grandchildren (scanned by min4)
+//	       i
+//	     /   \
+//	   c0     c1        ← children (scanned by min2)
+//	  / \    / \
+//	g0  g1  g2  g3      ← grandchildren (scanned by min4)
 func min4(h heap.Interface, l int, min bool, i int) int {
 	q := i
 	i++
@@ -271,11 +269,11 @@ func min3(h heap.Interface, l int, min bool, i, j, k int) int {
 // max levels) among three candidates: the node itself, its best child,
 // and its best grandchild:
 //
-//	           i           ← current node
-//	         /   \
-//	       c0     c1       ← children (best picked by min2)
-//	      / \    / \
-//	    g0  g1  g2  g3     ← grandchildren (best picked by min4)
+//	       i           ← current node
+//	     /   \
+//	   c0     c1       ← children (best picked by min2)
+//	  / \    / \
+//	g0  g1  g2  g3     ← grandchildren (best picked by min4)
 //
 // If a grandchild wins, the element moves down two levels and may
 // also need a fixup swap with the child in between (which is on the
@@ -334,14 +332,14 @@ func bubbledown(h heap.Interface, l int, min bool, i int) (q int, r int) {
 //     swap with the parent and then continue phase 1 from there on the
 //     opposite level type.
 //
-//	            0  (min)         Inserting a new min at index 9:
-//	          /   \              - Compare with grandparent (index 1, max): skip
-//	        1       2  (max)    - Compare with parent (index 4, max): swap if needed
-//	      / | \   / \           - Then compare up grandparent chain on max levels
-//	    3   4   5 6   (min)
-//	   /|
-//	  7  8  [9] ← new          Grandparent links: 9→1→ (root has no grandparent)
-//	  (max)                     Parent link: 9→4
+//     0  (min)         Inserting a new min at index 9:
+//     /   \              - Compare with grandparent (index 1, max): skip
+//     1       2  (max)    - Compare with parent (index 4, max): swap if needed
+//     / | \   / \           - Then compare up grandparent chain on max levels
+//     3   4   5 6   (min)
+//     /|
+//     7  8  [9] ← new          Grandparent links: 9→1→ (root has no grandparent)
+//     (max)                     Parent link: 9→4
 func bubbleup(h heap.Interface, min bool, i int) (q bool) {
 	if i < 0 {
 		return false
@@ -376,7 +374,7 @@ func Pop(h heap.Interface) interface{} {
 	if h.Len() == 0 {
 		return nil
 	}
-	l := h.Len()-1
+	l := h.Len() - 1
 	h.Swap(0, l)
 	q := h.Pop()
 	bubbledown(h, l, true, 0)
@@ -391,9 +389,9 @@ func Pop(h heap.Interface) interface{} {
 // element, pop the last off the slice, and bubbledown from the vacated
 // child position using max-level ordering.
 //
-//	              min: 1
-//	                /   \
-//	    max: [9]     5       ← max is at index 1; swap it out
+//	          min: 1
+//	            /   \
+//	max: [9]     5       ← max is at index 1; swap it out
 //
 // Time complexity is O(log n), where n = h.Len().
 func PopMax(h heap.Interface) interface{} {
@@ -403,12 +401,12 @@ func PopMax(h heap.Interface) interface{} {
 	l := h.Len()
 	j := 0
 	if l > 1 {
-		j = min2(h, l,false, 1)
+		j = min2(h, l, false, 1)
 	}
 	l = l - 1
 	h.Swap(j, l)
 	q := h.Pop()
-	bubbledown(h, l,false, j)
+	bubbledown(h, l, false, j)
 	return q
 }
 
