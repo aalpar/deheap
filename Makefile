@@ -6,7 +6,7 @@ GO_VET=$(GO) vet
 GO_BENCH=$(GO_TEST) -bench .
 GIT=git
 SH_TOOLS_DIR=./tools/sh
-BUILD_VERSION:=$(shell cat ./VERSION 2>/dev/null || echo "0.0.0")
+BUILD_VERSION:=$(shell cat ./VERSION 2>/dev/null || echo "v0.0.0")
 
 .PHONY: all
 all: build test vet
@@ -22,6 +22,10 @@ test:
 .PHONY: bench
 bench:
 	$(GO_BENCH) ./...
+
+.PHONY: format
+format:
+	gofmt -s -w .
 
 .PHONY: vet
 vet:

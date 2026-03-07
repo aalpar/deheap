@@ -1,5 +1,9 @@
 # deheap
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/aalpar/deheap.svg)](https://pkg.go.dev/github.com/aalpar/deheap)
+[![Go Report Card](https://goreportcard.com/badge/github.com/aalpar/deheap)](https://goreportcard.com/report/github.com/aalpar/deheap)
+[![codecov](https://codecov.io/gh/aalpar/deheap/graph/badge.svg)](https://codecov.io/gh/aalpar/deheap)
+
 A doubly-ended heap (min-max heap) for Go. Provides O(log n) access to both
 the minimum and maximum elements of a collection through a single data
 structure, with zero external dependencies.
