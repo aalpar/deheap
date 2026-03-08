@@ -46,3 +46,14 @@ func Example_ordered() {
 	// maximum: 6
 	// 6 5 1 2 middle value: 3
 }
+
+func ExampleDeheap_Verify() {
+	h := deheap.From(2, 1, 5, 6)
+	fmt.Println(h.Verify())
+
+	h.Push(3)
+	fmt.Println(h.Verify())
+	// Output:
+	// true
+	// true
+}

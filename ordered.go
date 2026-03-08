@@ -48,12 +48,18 @@ func New[T cmp.Ordered]() *Deheap[T] {
 }
 
 // From constructs a Deheap from the given elements and initializes
-// the heap ordering.
+// the heap ordering using Floyd's bottom-up heap construction.
+//
+// If the input already satisfies the heap property, From returns
+// after a linear scan with no modifications.
 func From[T cmp.Ordered](items ...T) *Deheap[T] {
 	q := &Deheap[T]{items: make([]T, len(items))}
 	copy(q.items, items)
-	for i := range q.items {
-		orderedBubbleup(q.items, isMinHeap(i), i)
+	l := len(q.items)
+	if !orderedValid(q.items, l) {
+		for i := (l - 1) / 2; i >= 0; i-- {
+			orderedBubbledown(q.items, l, isMinHeap(i), i)
+		}
 	}
 	return q
 }
@@ -118,6 +124,46 @@ func (p *Deheap[T]) Remove(i int) T {
 	return v
 }
 
+// Fix re-establishes the heap ordering after the element at index i
+// has changed its value. Equivalent to, but cheaper than, Remove(i)
+// followed by Push of the new value.
+//
+// The index i must be in the range [0, p.Len()).
+// It panics if i is out of bounds.
+//
+// The complexity is O(log n) where n = p.Len().
+func (p *Deheap[T]) Fix(i int) {
+	l := len(p.items)
+	min := isMinHeap(i)
+	pos := i
+	for {
+		j := orderedMin2(p.items, l, min, hlchild(pos))
+		if j >= l {
+			break
+		}
+		k := orderedMin4(p.items, l, min, lchild(pos))
+		v := orderedMin3(p.items, l, min, pos, j, k)
+		if v == pos || v >= l {
+			break
+		}
+		p.items[v], p.items[pos] = p.items[pos], p.items[v]
+		if v == j {
+			pos = v
+			break
+		}
+		hp := hparent(v)
+		if orderedLess(p.items, min, hp, v) {
+			p.items[hp], p.items[v] = p.items[v], p.items[hp]
+			orderedBubbleup(p.items, isMinHeap(hp), hp)
+		}
+		pos = v
+	}
+	orderedBubbleup(p.items, isMinHeap(pos), pos)
+	if pos != i {
+		orderedBubbleup(p.items, isMinHeap(i), i)
+	}
+}
+
 // Len returns the number of elements in the heap.
 func (p *Deheap[T]) Len() int {
 	return len(p.items)
@@ -153,6 +199,13 @@ func (p *Deheap[T]) PeekMax() T {
 	return p.items[2]
 }
 
+// Verify reports whether the heap satisfies the min-max heap property.
+//
+// Time complexity is O(n), where n = p.Len().
+func (p *Deheap[T]) Verify() bool {
+	return orderedValid(p.items, len(p.items))
+}
+
 // ---------------------------------------------------------------------------
 // Generic algorithm functions
 //
@@ -165,6 +218,36 @@ func (p *Deheap[T]) PeekMax() T {
 // isMinHeap) are shared — they are pure index arithmetic with no
 // type dependency.
 // ---------------------------------------------------------------------------
+
+// orderedValid reports whether items satisfies the min-max heap property.
+// See valid in deheap.go for the algorithm description.
+func orderedValid[T cmp.Ordered](items []T, l int) bool {
+	for i := 1; i < l; i++ {
+		hp := hparent(i)
+		if isMinHeap(i) {
+			if items[hp] < items[i] {
+				return false
+			}
+		} else {
+			if items[i] < items[hp] {
+				return false
+			}
+		}
+		if i >= 3 {
+			gp := hparent(hp)
+			if isMinHeap(i) {
+				if items[i] < items[gp] {
+					return false
+				}
+			} else {
+				if items[gp] < items[i] {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
 
 // orderedLess compares two elements, respecting the min flag.
 // When min=true, returns whether items[a] < items[b].
