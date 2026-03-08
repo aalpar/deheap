@@ -71,6 +71,15 @@ max := h.PopMax()
 
 // Remove by index.
 val := h.Remove(2)
+
+// Update an element and restore heap order.
+h.Push(10)
+h.Push(20)
+// ... mutate the element at index 0 ...
+h.Fix(0)
+
+// Check if the heap is valid.
+fmt.Println(h.Verify()) // true
 ```
 
 ### Interface API
@@ -102,6 +111,13 @@ deheap.Init(h)
 deheap.Push(h, 3)
 min := deheap.Pop(h)
 max := deheap.PopMax(h)
+
+// Update an element and restore heap order.
+(*h)[0] = 42
+deheap.Fix(h, 0)
+
+// Check if the heap is valid.
+fmt.Println(deheap.Verify(h)) // true
 ```
 
 ## Implementation
@@ -131,9 +147,11 @@ and boxing overhead.
 | `Pop`     | O(log n) | O(1) |
 | `PopMax`  | O(log n) | O(1) |
 | `Remove`  | O(log n) | O(1) |
+| `Fix`     | O(log n) | O(1) |
 | `Peek`    | O(1)     | O(1) |
 | `PeekMax` | O(1)     | O(1) |
 | `Init`    | O(n)     | O(1) |
+| `Verify`  | O(n)     | O(1) |
 
 Storage is a single contiguous slice — one element per slot, no child
 pointers, no color bits, no auxiliary arrays. Memory overhead beyond the
@@ -222,9 +240,9 @@ PASS
 
 ## Testing
 
-The test suite includes 36 test functions covering internal helpers,
+The test suite includes 54 test functions covering internal helpers,
 algorithmic correctness, edge cases (empty, single-element, two-element
-heaps), and large-scale randomized validation. Four native Go fuzz targets
+heaps), and large-scale randomized validation. Six native Go fuzz targets
 (`testing.F`) exercise both API surfaces under arbitrary input. Tests are run
 against Go 1.21, 1.22, and 1.23 in CI.
 
