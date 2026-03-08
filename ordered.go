@@ -282,28 +282,20 @@ func orderedMin3[T cmp.Ordered](items []T, l int, min bool, i, j, k int) int {
 
 // orderedMin4 finds the extremum among up to 4 consecutive elements
 // starting at index i.
+//
+// Uses a loop instead of unrolled comparisons so the compiler's
+// inlining cost stays under the budget (the unrolled form costs 130;
+// budget is 80).
 func orderedMin4[T cmp.Ordered](items []T, l int, min bool, i int) int {
 	q := i
-	i++
-	if i >= l {
-		return q
+	end := i + 4
+	if end > l {
+		end = l
 	}
-	if orderedLess(items, min, i, q) {
-		q = i
-	}
-	i++
-	if i >= l {
-		return q
-	}
-	if orderedLess(items, min, i, q) {
-		q = i
-	}
-	i++
-	if i >= l {
-		return q
-	}
-	if orderedLess(items, min, i, q) {
-		q = i
+	for i++; i < end; i++ {
+		if orderedLess(items, min, i, q) {
+			q = i
+		}
 	}
 	return q
 }
