@@ -46,3 +46,6 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refresh Go Report Card
+        run: curl -sS -X POST -d "repo=github.com/aalpar/deheap" https://goreportcard.com/checks
