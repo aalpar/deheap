@@ -26,6 +26,7 @@ package deheap
 import (
 	"math"
 	"math/rand"
+	"reflect"
 	"sort"
 	"testing"
 	"time"
@@ -105,6 +106,9 @@ func TestOrderedPushPop(t *testing.T) {
 	for i := 32; i >= 0; i-- {
 		h.Push(i)
 	}
+	if !h.Verify() {
+		t.Fatalf("Verify() failed after Push")
+	}
 	prev := -1
 	for h.Len() > 0 {
 		v := h.Pop()
@@ -122,6 +126,9 @@ func TestOrderedPopMax(t *testing.T) {
 	for i := 0; i < 33; i++ {
 		h.Push(i)
 	}
+	if !h.Verify() {
+		t.Fatalf("Verify() failed after Push")
+	}
 	prev := math.MaxInt
 	for h.Len() > 0 {
 		v := h.PopMax()
@@ -136,6 +143,9 @@ func TestOrderedPopMax(t *testing.T) {
 // and drains correctly via Pop.
 func TestOrderedFrom(t *testing.T) {
 	h := From(5, 3, 8, 1, 9, 2, 7, 4, 6)
+	if !h.Verify() {
+		t.Fatalf("Verify() failed after From")
+	}
 	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	for i, w := range want {
 		v := h.Pop()
@@ -197,6 +207,9 @@ func TestOrderedRemove(t *testing.T) {
 	for k := 0; k < len(items); k++ {
 		h := From(items...)
 		removed := h.Remove(k)
+		if !h.Verify() {
+			t.Fatalf("Verify() failed after Remove(%d)", k)
+		}
 		// Collect remaining via Pop
 		var got []int
 		for h.Len() > 0 {
@@ -249,6 +262,9 @@ func TestOrderedRandomPopPopMax(t *testing.T) {
 				}
 				hi = v
 			}
+			if !h.Verify() {
+				t.Fatalf("iter %d: Verify() failed", iter)
+			}
 		}
 	}
 }
@@ -276,6 +292,9 @@ func TestOrderedRandomRemove(t *testing.T) {
 		for h.Len() > 0 {
 			idx := s.Intn(h.Len())
 			removed := h.Remove(idx)
+			if !h.Verify() {
+				t.Fatalf("iter %d: Verify() failed after Remove(%d)", iter, idx)
+			}
 			j := sort.SearchInts(oracle, removed)
 			oracle = append(oracle[:j], oracle[j+1:]...)
 		}
@@ -326,6 +345,9 @@ func FuzzOrderedPushPop(f *testing.F) {
 				copy(oracle[i+1:], oracle[i:])
 				oracle[i] = v
 			}
+			if !h.Verify() {
+				t.Fatalf("Verify() failed")
+			}
 			if h.Len() != len(oracle) {
 				t.Fatalf("length mismatch: heap=%d, oracle=%d", h.Len(), len(oracle))
 			}
@@ -356,12 +378,71 @@ func FuzzOrderedRemove(f *testing.F) {
 		for h.Len() > 0 {
 			idx := s.Intn(h.Len())
 			removed := h.Remove(idx)
+			if !h.Verify() {
+				t.Fatalf("Verify() failed after Remove")
+			}
 			j := sort.SearchInts(oracle, removed)
 			oracle = append(oracle[:j], oracle[j+1:]...)
 		}
 
 		if len(oracle) != 0 {
 			t.Fatalf("oracle not empty after draining heap")
+		}
+	})
+}
+
+// FuzzOrderedFix pushes the first half of bytes onto a heap, then interprets
+// the second half as (index, newValue) pairs for Fix operations. Drains the
+// heap and validates sorted output against an oracle.
+func FuzzOrderedFix(f *testing.F) {
+	f.Add([]byte{5, 3, 8, 1, 9, 2, 7, 4, 6})
+	f.Add([]byte{1, 1, 1, 1, 1, 1})
+	f.Add([]byte{})
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) < 2 {
+			return
+		}
+		mid := len(data) / 2
+		h := New[int]()
+		var oracle []int
+		for _, c := range data[:mid] {
+			v := int(c)
+			h.Push(v)
+			i := sort.SearchInts(oracle, v)
+			oracle = append(oracle, 0)
+			copy(oracle[i+1:], oracle[i:])
+			oracle[i] = v
+		}
+
+		for i := mid; i+1 < len(data); i += 2 {
+			if h.Len() == 0 {
+				break
+			}
+			idx := int(data[i]) % h.Len()
+			newVal := int(data[i+1])
+			oldVal := h.items[idx]
+
+			// Update oracle.
+			j := sort.SearchInts(oracle, oldVal)
+			oracle = append(oracle[:j], oracle[j+1:]...)
+			k := sort.SearchInts(oracle, newVal)
+			oracle = append(oracle, 0)
+			copy(oracle[k+1:], oracle[k:])
+			oracle[k] = newVal
+
+			h.items[idx] = newVal
+			h.Fix(idx)
+			if !h.Verify() {
+				t.Fatalf("Verify() failed after Fix")
+			}
+		}
+
+		for di, want := range oracle {
+			got := h.Pop()
+			if got != want {
+				t.Fatalf("Pop[%d] = %d, want %d", di, got, want)
+			}
 		}
 	})
 }
@@ -419,6 +500,143 @@ func TestOrderedRemoveTwoElements(t *testing.T) {
 	}
 	if r := h.Pop(); r != 5 {
 		t.Fatalf("remaining equal = %d, want 5", r)
+	}
+}
+
+// TestOrderedFix verifies Fix restores the heap property after modifying
+// a single element. Covers bubbledown, bubbleup, both level types,
+// root/leaf/interior, and edge cases.
+func TestOrderedFix(t *testing.T) {
+	drain := func(h *Deheap[int]) []int {
+		var out []int
+		for h.Len() > 0 {
+			out = append(out, h.Pop())
+		}
+		return out
+	}
+
+	// Increase root (min level) — needs bubbledown.
+	h := From(1, 9, 5, 4, 6, 3, 2)
+	h.items[0] = 100
+	h.Fix(0)
+	if !h.Verify() {
+		t.Fatalf("Fix root increase: Verify() failed")
+	}
+	got := drain(h)
+	want := []int{2, 3, 4, 5, 6, 9, 100}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Fix root increase: got %v, want %v", got, want)
+	}
+
+	// Decrease min-level node to new global min — bubbleup.
+	h = From(1, 9, 5, 4, 6, 3, 2)
+	h.items[3] = -1
+	h.Fix(3)
+	if !h.Verify() {
+		t.Fatalf("Fix min node decrease: Verify() failed")
+	}
+	if h.Peek() != -1 {
+		t.Fatalf("Fix min node decrease: Peek = %d, want -1", h.Peek())
+	}
+
+	// Increase min-level leaf — bubbleup through max chain.
+	h = From(1, 9, 5, 4, 6, 3, 2)
+	h.items[6] = 100
+	h.Fix(6)
+	if !h.Verify() {
+		t.Fatalf("Fix min leaf increase: Verify() failed")
+	}
+	if h.PeekMax() != 100 {
+		t.Fatalf("Fix min leaf increase: PeekMax = %d, want 100", h.PeekMax())
+	}
+
+	// Decrease max-level node.
+	h = From(1, 9, 5, 4, 6, 3, 2)
+	h.items[1] = 0
+	h.Fix(1)
+	if !h.Verify() {
+		t.Fatalf("Fix max node decrease: Verify() failed")
+	}
+	if h.Peek() != 0 {
+		t.Fatalf("Fix max node decrease: Peek = %d, want 0", h.Peek())
+	}
+
+	// No-op: value unchanged.
+	h = From(1, 9, 5, 4, 6, 3, 2)
+	h.Fix(3)
+	if !h.Verify() {
+		t.Fatalf("Fix no-op: Verify() failed")
+	}
+	got = drain(h)
+	want = []int{1, 2, 3, 4, 5, 6, 9}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Fix no-op: got %v, want %v", got, want)
+	}
+
+	// Single element.
+	h = From(42)
+	h.items[0] = 99
+	h.Fix(0)
+	if !h.Verify() {
+		t.Fatalf("Fix single: Verify() failed")
+	}
+	if h.Pop() != 99 {
+		t.Fatalf("Fix single: unexpected value")
+	}
+
+	// Two elements: fix min to exceed max.
+	h = From(3, 7)
+	h.items[0] = 10
+	h.Fix(0)
+	if !h.Verify() {
+		t.Fatalf("Fix two (min): Verify() failed")
+	}
+	if h.Peek() != 7 {
+		t.Fatalf("Fix two (min): Peek = %d, want 7", h.Peek())
+	}
+}
+
+// TestOrderedFixRandomized modifies random elements in random heaps and
+// verifies Fix restores the heap property. Validates content by draining.
+func TestOrderedFixRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 2
+		h := New[int]()
+		for i := 0; i < n; i++ {
+			h.Push(s.Intn(n))
+		}
+
+		// Build sorted oracle from current heap state.
+		oracle := make([]int, len(h.items))
+		copy(oracle, h.items)
+		sort.Ints(oracle)
+
+		// Modify a random element and fix.
+		idx := s.Intn(h.Len())
+		oldVal := h.items[idx]
+		newVal := s.Intn(n*2) - n
+		h.items[idx] = newVal
+		h.Fix(idx)
+		if !h.Verify() {
+			t.Fatalf("iter %d: Verify() failed after Fix(%d)", iter, idx)
+		}
+
+		// Update oracle: remove old, insert new.
+		j := sort.SearchInts(oracle, oldVal)
+		oracle = append(oracle[:j], oracle[j+1:]...)
+		k := sort.SearchInts(oracle, newVal)
+		oracle = append(oracle, 0)
+		copy(oracle[k+1:], oracle[k:])
+		oracle[k] = newVal
+
+		for di, want := range oracle {
+			got := h.Pop()
+			if got != want {
+				t.Fatalf("iter %d: Pop[%d] = %d, want %d", iter, di, got, want)
+			}
+		}
 	}
 }
 

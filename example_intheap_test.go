@@ -50,3 +50,17 @@ func Example_intHeap() {
 	// minimum: 1
 	// 6 5 1 2 middle value: 3
 }
+
+// This example demonstrates using Verify to check heap validity.
+func ExampleVerify() {
+	h := &IntDeheap{2, 1, 5, 6}
+	deheap.Init(h)
+	fmt.Println(deheap.Verify(h))
+
+	// Corrupt the heap by placing a small value at a max-level position.
+	(*h)[1] = -1
+	fmt.Println(deheap.Verify(h))
+	// Output:
+	// true
+	// false
+}

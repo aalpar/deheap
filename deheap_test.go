@@ -224,13 +224,13 @@ func TestBubbleUp(t *testing.T) {
 
 	h = &IntHeap{2, 15, 13, 4, 6, 8, 1}
 	bubbleup(h, isMinHeap(6), 6)
-	if _, _, ok := isHeap(t, h); !ok {
+	if !Verify(h) {
 		t.Fatalf("unexpected value: %v", h)
 	}
 
 	h = &IntHeap{1, 15, 14, 2, 3, 4, 5, 13, 12, 11, 10, 6, 7, 8, 9}
 	bubbleup(h, isMinHeap(14), 14)
-	if _, _, ok := isHeap(t, h); !ok {
+	if !Verify(h) {
 		t.Fatalf("unexpected value: %v", h)
 	}
 
@@ -238,7 +238,7 @@ func TestBubbleUp(t *testing.T) {
 
 // TestBubbleDown verifies the downward sift operation on hand-crafted heaps.
 // Cases: 3-element swap, 7-element with grandchild swap, 12-element with
-// multi-level cascade, and two larger heaps validated via isHeap.
+// multi-level cascade, and two larger heaps validated via Verify.
 func TestBubbleDown(t *testing.T) {
 
 	h := &IntHeap{15, 1, 2}
@@ -261,13 +261,13 @@ func TestBubbleDown(t *testing.T) {
 
 	h = &IntHeap{14, 15, 12, 4, 2, 3, 5, 13}
 	bubbledown(h, h.Len(), isMinHeap(0), 0)
-	if _, _, ok := isHeap(t, h); !ok {
+	if !Verify(h) {
 		t.Fatalf("unexpected value: %v", h)
 	}
 
 	h = &IntHeap{13, 14, 15, 3, 4, 5, 6, 7, 8, 9, 10}
 	bubbledown(h, h.Len(), isMinHeap(0), 0)
-	if _, _, ok := isHeap(t, h); !ok {
+	if !Verify(h) {
 		t.Fatalf("unexpected value: %v", h)
 	}
 
@@ -366,8 +366,8 @@ func TestMin3(t *testing.T) {
 func TestInit(t *testing.T) {
 	h := &IntHeap{15, 1, 2, 14, 13, 12, 11, 3, 4, 5, 6, 7, 8, 9, 10}
 	Init(h)
-	if x, y, ok := isHeap(t, h); !ok {
-		t.Fatalf("unexpected value: %v %v %v", x, y, h)
+	if !Verify(h) {
+		t.Fatalf("not a valid heap: %v", *h)
 	}
 }
 
@@ -505,6 +505,139 @@ func TestRemoveTwoElements(t *testing.T) {
 	}
 }
 
+// TestFix verifies Fix restores the heap property after modifying a single
+// element. Cases cover both directions (bubbledown and bubbleup), both
+// level types (min and max), root vs interior vs leaf, and no-op.
+func TestFix(t *testing.T) {
+	// Increase root (min level) — needs bubbledown.
+	h := &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	(*h)[0] = 100
+	Fix(h, 0)
+	if !Verify(h) {
+		t.Fatalf("Fix root increase: not a heap: %v", *h)
+	}
+
+	// Decrease root — already min, no movement needed.
+	h = &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	(*h)[0] = -1
+	Fix(h, 0)
+	if !Verify(h) {
+		t.Fatalf("Fix root decrease: not a heap: %v", *h)
+	}
+
+	// Decrease min-level node to new global min — bubbleup through min chain.
+	h = &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	(*h)[3] = -1
+	Fix(h, 3)
+	if !Verify(h) {
+		t.Fatalf("Fix min node decrease: not a heap: %v", *h)
+	}
+	if (*h)[0] != -1 {
+		t.Fatalf("Fix min node decrease: root = %d, want -1", (*h)[0])
+	}
+
+	// Increase min-level leaf — bubbleup through max chain.
+	h = &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	(*h)[6] = 100
+	Fix(h, 6)
+	if !Verify(h) {
+		t.Fatalf("Fix min leaf increase: not a heap: %v", *h)
+	}
+
+	// Decrease max-level node — needs bubbledown or cross-level swap.
+	h = &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	(*h)[1] = 0
+	Fix(h, 1)
+	if !Verify(h) {
+		t.Fatalf("Fix max node decrease: not a heap: %v", *h)
+	}
+
+	// Increase max-level node — no movement needed (already max).
+	h = &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	(*h)[1] = 100
+	Fix(h, 1)
+	if !Verify(h) {
+		t.Fatalf("Fix max node increase: not a heap: %v", *h)
+	}
+
+	// No-op: value unchanged.
+	h = &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	Fix(h, 3)
+	if !Verify(h) {
+		t.Fatalf("Fix no-op: not a heap: %v", *h)
+	}
+
+	// Single element.
+	h = &IntHeap{42}
+	Init(h)
+	(*h)[0] = 99
+	Fix(h, 0)
+	if !Verify(h) {
+		t.Fatalf("Fix single: not a heap: %v", *h)
+	}
+
+	// Two elements: fix min.
+	h = &IntHeap{3, 7}
+	Init(h)
+	(*h)[0] = 10
+	Fix(h, 0)
+	if !Verify(h) {
+		t.Fatalf("Fix two (min): not a heap: %v", *h)
+	}
+
+	// Two elements: fix max.
+	h = &IntHeap{3, 7}
+	Init(h)
+	(*h)[1] = 1
+	Fix(h, 1)
+	if !Verify(h) {
+		t.Fatalf("Fix two (max): not a heap: %v", *h)
+	}
+}
+
+// TestFixRandomized modifies random elements in random heaps and verifies
+// Fix restores the heap property. Validates both structure (Verify) and
+// content (sorted drain matches oracle).
+func TestFixRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 2
+		h := randIntHeapWithDups(t, n, 0.1)
+
+		// Build sorted oracle from current heap state.
+		oracle := make([]int, h.Len())
+		copy(oracle, *h)
+		sort.Ints(oracle)
+
+		// Modify a random element and fix.
+		idx := s.Intn(h.Len())
+		oldVal := (*h)[idx]
+		newVal := s.Intn(n*2) - n
+		(*h)[idx] = newVal
+		Fix(h, idx)
+
+		// Update oracle: remove old, insert new.
+		j := sort.SearchInts(oracle, oldVal)
+		oracle = append(oracle[:j], oracle[j+1:]...)
+		k := sort.SearchInts(oracle, newVal)
+		oracle = append(oracle, 0)
+		copy(oracle[k+1:], oracle[k:])
+		oracle[k] = newVal
+
+		if !Verify(h) {
+			t.Fatalf("iter %d: Fix(%d) broke heap: %v", iter, idx, *h)
+		}
+
+		for di, want := range oracle {
+			got := Pop(h).(int)
+			if got != want {
+				t.Fatalf("iter %d: Pop[%d] = %d, want %d", iter, di, got, want)
+			}
+		}
+	}
+}
+
 // TestPush verifies Push maintains the heap property under three insertion
 // patterns: ascending order, descending order (validated after each push),
 // and alternating high/low values.
@@ -514,15 +647,15 @@ func TestPush(t *testing.T) {
 	for i := 0; i < 32; i++ {
 		Push(h, i)
 	}
-	if x, y, ok := isHeap(t, h); !ok {
-		t.Fatalf("unexpected value: %v %v %v", x, y, h)
+	if !Verify(h) {
+		t.Fatalf("not a valid heap: %v", *h)
 	}
 
 	h = &IntHeap{}
 	for i := 3; i >= 0; i-- {
 		Push(h, i)
-		if x, y, ok := isHeap(t, h); !ok {
-			t.Fatalf("unexpected value: %v %v %v", x, y, h)
+		if !Verify(h) {
+			t.Fatalf("not a valid heap: %v", *h)
 		}
 	}
 
@@ -535,8 +668,8 @@ func TestPush(t *testing.T) {
 		}
 		Push(h, k)
 	}
-	if x, y, ok := isHeap(t, h); !ok {
-		t.Fatalf("unexpected value: %v %v %v", x, y, h)
+	if !Verify(h) {
+		t.Fatalf("not a valid heap: %v", *h)
 	}
 
 }
@@ -601,8 +734,8 @@ func TestPops(t *testing.T) {
 
 	for ti, tv := range ts {
 
-		if a, b, ok := isHeap(t, &tv.h); !ok {
-			t.Fatalf("unexpected value: %d %d %v", a, b, tv.h)
+		if !Verify(&tv.h) {
+			t.Fatalf("not a valid heap: %v", tv.h)
 		}
 
 		t.Run(fmt.Sprintf("%d Pop", ti), func(t1 *testing.T) {
@@ -668,7 +801,7 @@ func TestRemove(t *testing.T) {
 	if x != 3 {
 		t.Fatalf("unexpected value")
 	}
-	if _, _, ok := isHeap(t, h); !ok {
+	if !Verify(h) {
 		t.Fatalf("unexpected value")
 	}
 	if !reflect.DeepEqual(h, &IntHeap{0, 9, 5, 6, 1, 2, 4, 8, 7}) {
@@ -679,7 +812,7 @@ func TestRemove(t *testing.T) {
 	if x != 5 {
 		t.Fatalf("unexpected value")
 	}
-	if _, _, ok := isHeap(t, h); !ok {
+	if !Verify(h) {
 		t.Fatalf("unexpected value")
 	}
 	if !reflect.DeepEqual(h, &IntHeap{0, 9, 7, 6, 1, 2, 4, 8}) {
@@ -690,7 +823,7 @@ func TestRemove(t *testing.T) {
 	if x != 0 {
 		t.Fatalf("unexpected value")
 	}
-	if _, _, ok := isHeap(t, h); !ok {
+	if !Verify(h) {
 		t.Fatalf("unexpected value")
 	}
 	if !reflect.DeepEqual(h, &IntHeap{1, 9, 7, 6, 8, 2, 4}) && !reflect.DeepEqual(h, &IntHeap{1, 9, 8, 6, 7, 2, 4}) {
@@ -730,7 +863,7 @@ func TestOps(t *testing.T) {
 				}
 				y1 = x
 			}
-			if _, _, ok := isHeap(t, h); !ok {
+			if !Verify(h) {
 				t.Fatalf("unexpected value")
 			}
 		}
@@ -741,8 +874,8 @@ func TestOps(t *testing.T) {
 			copy(h0, []int(*h))
 			x := s.Intn(h.Len())
 			Remove(h, x)
-			if i, j, ok := isHeap(t, h); !ok {
-				t.Fatalf("unexpected value: %d %d %d\n%v\n%v", x, i, j, h0, h)
+			if !Verify(h) {
+				t.Fatalf("unexpected value: removed %d\n%v\n%v", x, h0, h)
 			}
 		}
 
@@ -980,6 +1113,9 @@ func FuzzV1PushPop(f *testing.F) {
 				Push(h, v)
 				oracle.push(v)
 			}
+			if !Verify(h) {
+				t.Fatalf("Verify() failed")
+			}
 			if h.Len() != oracle.len() {
 				t.Fatalf("length mismatch: heap=%d, oracle=%d", h.Len(), oracle.len())
 			}
@@ -1006,6 +1142,40 @@ func FuzzV1Remove(f *testing.F) {
 		for h.Len() > 0 {
 			idx := s.Intn(h.Len())
 			Remove(h, idx)
+			if !Verify(h) {
+				t.Fatalf("Verify() failed after Remove(%d)", idx)
+			}
+		}
+	})
+}
+
+// FuzzV1Fix pushes the first half of bytes onto a heap, then interprets the
+// second half as (index, newValue) pairs for Fix operations. Validates the
+// heap property after every Fix.
+func FuzzV1Fix(f *testing.F) {
+	f.Add([]byte{5, 3, 8, 1, 9, 2, 7, 4, 6})
+	f.Add([]byte{1, 1, 1, 1, 1, 1})
+	f.Add([]byte{})
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) < 2 {
+			return
+		}
+		mid := len(data) / 2
+		h := &IntHeap{}
+		for _, c := range data[:mid] {
+			Push(h, int(c))
+		}
+		for i := mid; i+1 < len(data); i += 2 {
+			if h.Len() == 0 {
+				break
+			}
+			idx := int(data[i]) % h.Len()
+			(*h)[idx] = int(data[i+1])
+			Fix(h, idx)
+			if !Verify(h) {
+				t.Fatalf("Fix(%d) broke heap", idx)
+			}
 		}
 	})
 }
@@ -1040,51 +1210,6 @@ func (s *sortedOracle) len() int {
 	return len(*s)
 }
 
-// isHeap validates the min-max heap property for every node.
-// For each node i it checks:
-//   - Grandparent (same level type): on a min level grandparent <= node,
-//     on a max level grandparent >= node.
-//   - Binary parent (opposite level type): on a min level the max-level
-//     parent >= node, on a max level the min-level parent <= node.
-func isHeap(t *testing.T, h heap.Interface) (int, int, bool) {
-	t.Helper()
-	l := h.Len()
-	for i := l - 1; i >= 0; i-- {
-		min := isMinHeap(i)
-		p0 := parent(i)
-		p1 := hparent(i)
-		// Grandparent (same level type as i):
-		//   min level: grandparent <= node, violation if node < grandparent
-		//   max level: grandparent >= node, violation if grandparent < node
-		if p0 >= 0 {
-			if min && h.Less(i, p0) {
-				return p0, i, false
-			}
-			if !min && h.Less(p0, i) {
-				return p0, i, false
-			}
-		}
-		// Binary parent (opposite level type from i):
-		//   i on min level, parent on max: parent >= i, violation if parent < i
-		//   i on max level, parent on min: parent <= i, violation if i < parent
-		if p1 >= 0 {
-			if min && h.Less(p1, i) {
-				return p1, i, false
-			}
-			if !min && h.Less(i, p1) {
-				return p1, i, false
-			}
-		}
-	}
-	if l > 1 && h.Less(1, 0) {
-		return 1, 0, false
-	}
-	if l > 2 && h.Less(2, 0) {
-		return 2, 0, false
-	}
-	return 0, 0, true
-}
-
 // randIntHeapWithDups builds a random heap of n elements. The fraction
 // parameter controls how many duplicate values are inserted (e.g. 0.1
 // means ~10% extra duplicates).
@@ -1107,8 +1232,8 @@ func randIntHeapWithDups(t *testing.T, n int, fraction float64) *IntHeap {
 		Push(h, q)
 	}
 
-	if x, y, ok := isHeap(t, h); !ok {
-		panic(fmt.Sprintf("not a heap!: %d %d", x, y))
+	if !Verify(h) {
+		panic(fmt.Sprintf("not a heap!: %v", *h))
 	}
 
 	return h

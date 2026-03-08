@@ -430,6 +430,52 @@ func Remove(h heap.Interface, i int) (q interface{}) {
 	return q
 }
 
+// Fix re-establishes the heap ordering after the element at index i
+// has changed its value. Equivalent to, but cheaper than, Remove(h, i)
+// followed by Push of the new value.
+//
+// The index i must be in the range [0, h.Len()).
+// It panics if i is out of bounds.
+//
+// The complexity is O(log n) where n = h.Len().
+func Fix(h heap.Interface, i int) {
+	l := h.Len()
+	// Sift down from i. At each cross-level fixup, immediately
+	// bubbleup the displaced element so it is not lost when the
+	// loop overwrites the position on the next iteration.
+	min := isMinHeap(i)
+	pos := i
+	for {
+		j := min2(h, l, min, hlchild(pos))
+		if j >= l {
+			break
+		}
+		k := min4(h, l, min, lchild(pos))
+		v := min3(h, l, min, pos, j, k)
+		if v == pos || v >= l {
+			break
+		}
+		h.Swap(v, pos)
+		if v == j {
+			pos = v
+			break
+		}
+		p := hparent(v)
+		if (min && h.Less(p, v)) || (!min && h.Less(v, p)) {
+			h.Swap(p, v)
+			bubbleup(h, isMinHeap(p), p)
+		}
+		pos = v
+	}
+	// Fix upward from the final sift position (where the modified
+	// element landed) and from the original position (which now
+	// holds a descendant that may violate ancestor constraints).
+	bubbleup(h, isMinHeap(pos), pos)
+	if pos != i {
+		bubbleup(h, isMinHeap(i), i)
+	}
+}
+
 // Push adds element o to the heap, maintaining the min-max heap property.
 //
 // The element is appended to the end of the slice (the next open slot
@@ -443,16 +489,68 @@ func Push(h heap.Interface, o interface{}) {
 	bubbleup(h, isMinHeap(i), i)
 }
 
+// valid reports whether h satisfies the min-max heap property.
+//
+// It checks each node against its binary parent (adjacent level type)
+// and grandparent (same level type). These two local checks suffice:
+// transitivity along grandparent chains establishes the global property.
+//
+// The scan is sequential over indices 1..l-1, making it cache-friendly.
+func valid(h heap.Interface, l int) bool {
+	for i := 1; i < l; i++ {
+		hp := hparent(i)
+		if isMinHeap(i) {
+			// i on min level, hp on max level: hp must be ≥ i.
+			if h.Less(hp, i) {
+				return false
+			}
+		} else {
+			// i on max level, hp on min level: i must be ≥ hp.
+			if h.Less(i, hp) {
+				return false
+			}
+		}
+		if i >= 3 {
+			gp := hparent(hp)
+			if isMinHeap(i) {
+				// Both min: gp must be ≤ i.
+				if h.Less(i, gp) {
+					return false
+				}
+			} else {
+				// Both max: gp must be ≥ i.
+				if h.Less(gp, i) {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// Verify reports whether h satisfies the min-max heap property.
+//
+// Time complexity is O(n), where n = h.Len().
+func Verify(h heap.Interface) bool {
+	return valid(h, h.Len())
+}
+
 // Init establishes the min-max heap ordering on an arbitrary slice.
 // Call this once on a non-empty slice before calling Pop, PopMax, or Push.
 //
-// It works by iterating through every element and bubbling it up,
-// effectively inserting elements one at a time into a growing heap.
+// If the data already satisfies the heap property, Init returns after
+// a linear scan with no modifications. Otherwise it uses Floyd's
+// bottom-up heap construction, processing nodes from the last non-leaf
+// down to the root. Most work happens near the leaves where subtrees
+// are small and memory accesses are local.
 //
 // Time complexity is O(n), where n = h.Len().
 func Init(h heap.Interface) {
 	l := h.Len()
-	for i := 0; i < l; i++ {
-		bubbleup(h, isMinHeap(i), i)
+	if valid(h, l) {
+		return
+	}
+	for i := (l - 1) / 2; i >= 0; i-- {
+		bubbledown(h, l, isMinHeap(i), i)
 	}
 }
