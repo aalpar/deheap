@@ -1205,6 +1205,30 @@ func BenchmarkHeapPush(b *testing.B) {
 
 }
 
+func BenchmarkV1PushPop(b *testing.B) {
+	s := _newRand()
+	h := &IntHeap{}
+	for i := 0; i < 10000; i++ {
+		Push(h, s.Intn(10000))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		PushPop(h, s.Intn(10000))
+	}
+}
+
+func BenchmarkV1PushPopMax(b *testing.B) {
+	s := _newRand()
+	h := &IntHeap{}
+	for i := 0; i < 10000; i++ {
+		Push(h, s.Intn(10000))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		PushPopMax(h, s.Intn(10000))
+	}
+}
+
 // FuzzV1PushPop interprets a byte sequence as heap commands:
 //
 //	'<' = Pop, '>' = PopMax,

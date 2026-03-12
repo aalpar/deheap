@@ -1504,3 +1504,65 @@ func BenchmarkOrderedPushPop(b *testing.B) {
 		h.Pop()
 	}
 }
+
+func BenchmarkOrderedGenericPushPop(b *testing.B) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	h := New[int]()
+	for i := 0; i < 10000; i++ {
+		h.Push(s.Intn(10000))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.PushPop(s.Intn(10000))
+	}
+}
+
+func BenchmarkOrderedGenericPushPopMax(b *testing.B) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	h := New[int]()
+	for i := 0; i < 10000; i++ {
+		h.Push(s.Intn(10000))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.PushPopMax(s.Intn(10000))
+	}
+}
+
+func BenchmarkOrderedDrainAsc(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		h := New[int]()
+		for j := 0; j < 10000; j++ {
+			h.Push(j)
+		}
+		b.StartTimer()
+		for range h.DrainAsc() {
+		}
+	}
+}
+
+func BenchmarkOrderedDrainDesc(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		h := New[int]()
+		for j := 0; j < 10000; j++ {
+			h.Push(j)
+		}
+		b.StartTimer()
+		for range h.DrainDesc() {
+		}
+	}
+}
+
+func BenchmarkOrderedOffer(b *testing.B) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	h := NewBounded[int](1000)
+	for i := 0; i < 1000; i++ {
+		h.Push(s.Intn(10000))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.Offer(s.Intn(10000))
+	}
+}
