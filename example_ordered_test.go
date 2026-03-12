@@ -97,7 +97,7 @@ func ExampleDeheap_DrainDesc() {
 }
 
 func ExampleDeheap_Offer() {
-	h := deheap.FromBounded[int](3, 5, 1, 9)
+	h := deheap.FromBounded(3, 5, 1, 9)
 	fmt.Println(h.Len()) // 3 (built from 3 items)
 
 	evicted, didEvict := h.Offer(3)
