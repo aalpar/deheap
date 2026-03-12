@@ -727,6 +727,29 @@ func TestOrderedNew(t *testing.T) {
 	}
 }
 
+// TestNewBounded verifies NewBounded creates a heap with the correct max size.
+func TestNewBounded(t *testing.T) {
+	h := NewBounded[int](5)
+	if h.MaxLen() != 5 {
+		t.Fatalf("MaxLen = %d, want 5", h.MaxLen())
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", h.Len())
+	}
+}
+
+// TestMaxLenUnbounded verifies MaxLen returns 0 for unbounded heaps.
+func TestMaxLenUnbounded(t *testing.T) {
+	h := New[int]()
+	if h.MaxLen() != 0 {
+		t.Fatalf("MaxLen = %d, want 0", h.MaxLen())
+	}
+	h2 := From(1, 2, 3)
+	if h2.MaxLen() != 0 {
+		t.Fatalf("MaxLen = %d, want 0", h2.MaxLen())
+	}
+}
+
 func BenchmarkOrderedPush(b *testing.B) {
 	r := make([]int, b.N)
 	for i := range r {

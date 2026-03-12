@@ -39,7 +39,8 @@ import "cmp"
 //	h.Pop()     // 1  — O(log n) remove minimum
 //	h.PopMax()  // 9  — O(log n) remove maximum
 type Deheap[T cmp.Ordered] struct {
-	items []T
+	items   []T
+	maxSize int // 0 = unbounded
 }
 
 // New returns an empty Deheap.
@@ -62,6 +63,19 @@ func From[T cmp.Ordered](items ...T) *Deheap[T] {
 		}
 	}
 	return q
+}
+
+// NewBounded returns an empty Deheap with a maximum size.
+// When the heap reaches maxSize elements, Offer will evict
+// the largest element to make room.
+func NewBounded[T cmp.Ordered](maxSize int) *Deheap[T] {
+	return &Deheap[T]{maxSize: maxSize}
+}
+
+// MaxLen returns the maximum number of elements the heap will hold.
+// Returns 0 for unbounded heaps.
+func (p *Deheap[T]) MaxLen() int {
+	return p.maxSize
 }
 
 // Push adds an element to the heap.
