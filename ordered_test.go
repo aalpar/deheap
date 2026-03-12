@@ -305,19 +305,25 @@ func TestOrderedRandomRemove(t *testing.T) {
 	}
 }
 
-// FuzzOrderedPushPop interprets a byte sequence as heap commands: '<' = Pop,
-// '>' = PopMax, anything else = Push(byte). Validates every result against
-// a sorted-slice oracle.
+// FuzzOrderedPushPop interprets a byte sequence as heap commands:
+//
+//	'<' = Pop, '>' = PopMax,
+//	'{' + next byte = PushPop(byte), '}' + next byte = PushPopMax(byte),
+//	anything else = Push(byte).
+//
+// Validates every result against a sorted-slice oracle.
 func FuzzOrderedPushPop(f *testing.F) {
 	f.Add([]byte{10, 5, 3, 8, '<', '>', 1, '<', 7, '>'})
 	f.Add([]byte{1, 1, 1, '<', '<', '<'})
+	f.Add([]byte{'{', 5, '}', 3, '<', '>'})
 	f.Add([]byte{})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		h := New[int]()
 		var oracle []int // kept sorted
 
-		for _, c := range data {
+		for i := 0; i < len(data); i++ {
+			c := data[i]
 			switch c {
 			case '<':
 				if h.Len() > 0 {
@@ -337,13 +343,47 @@ func FuzzOrderedPushPop(f *testing.F) {
 						t.Fatalf("PopMax: got %d, want %d", got, want)
 					}
 				}
+			case '{':
+				i++
+				if i >= len(data) {
+					continue
+				}
+				v := int(data[i])
+				// Oracle: insert v, pop min.
+				j := sort.SearchInts(oracle, v)
+				oracle = append(oracle, 0)
+				copy(oracle[j+1:], oracle[j:])
+				oracle[j] = v
+				want := oracle[0]
+				oracle = oracle[1:]
+				got := h.PushPop(v)
+				if got != want {
+					t.Fatalf("PushPop(%d): got %d, want %d", v, got, want)
+				}
+			case '}':
+				i++
+				if i >= len(data) {
+					continue
+				}
+				v := int(data[i])
+				// Oracle: insert v, pop max.
+				j := sort.SearchInts(oracle, v)
+				oracle = append(oracle, 0)
+				copy(oracle[j+1:], oracle[j:])
+				oracle[j] = v
+				want := oracle[len(oracle)-1]
+				oracle = oracle[:len(oracle)-1]
+				got := h.PushPopMax(v)
+				if got != want {
+					t.Fatalf("PushPopMax(%d): got %d, want %d", v, got, want)
+				}
 			default:
 				v := int(c)
 				h.Push(v)
-				i := sort.SearchInts(oracle, v)
+				j := sort.SearchInts(oracle, v)
 				oracle = append(oracle, 0)
-				copy(oracle[i+1:], oracle[i:])
-				oracle[i] = v
+				copy(oracle[j+1:], oracle[j:])
+				oracle[j] = v
 			}
 			if !h.Verify() {
 				t.Fatalf("Verify() failed")
