@@ -101,13 +101,15 @@ func FromBounded[T cmp.Ordered](maxSize int, items ...T) *Deheap[T] {
 	return q
 }
 
-// MaxLen returns the maximum number of elements the heap will hold.
+// MaxLen returns the capacity set by NewBounded or FromBounded.
+// This limit is enforced by Offer; Push does not check it.
 // Returns 0 for unbounded heaps.
 func (p *Deheap[T]) MaxLen() int {
 	return p.maxSize
 }
 
-// Push adds an element to the heap.
+// Push adds an element to the heap. It does not check MaxLen; use
+// Offer to respect a bounded heap's capacity.
 // Time complexity is O(log n), where n = h.Len().
 func (p *Deheap[T]) Push(o T) {
 	p.items = append(p.items, o)
@@ -258,8 +260,9 @@ func (p *Deheap[T]) PushPopMax(o T) T {
 // For unbounded heaps (MaxLen() == 0), Offer behaves like Push and
 // never evicts.
 //
-// Returns the evicted element and true if an eviction occurred, or the
-// zero value and false if o was simply added.
+// Returns the element not retained and true if the heap was at capacity
+// (o was evicted to make room, or o itself was rejected as the largest);
+// returns the zero value and false if o was simply added.
 func (p *Deheap[T]) Offer(o T) (evicted T, didEvict bool) {
 	if p.maxSize == 0 || len(p.items) < p.maxSize {
 		p.Push(o)
