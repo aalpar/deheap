@@ -86,10 +86,7 @@ func FromBounded[T cmp.Ordered](maxSize int, items ...T) *Deheap[T] {
 	if maxSize <= 0 {
 		panic("deheap: FromBounded maxSize must be positive")
 	}
-	n := len(items)
-	if n > maxSize {
-		n = maxSize
-	}
+	n := min(len(items), maxSize)
 	q := &Deheap[T]{items: make([]T, n), maxSize: maxSize}
 	copy(q.items, items[:n])
 	l := len(q.items)
