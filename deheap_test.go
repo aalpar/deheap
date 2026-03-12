@@ -674,6 +674,160 @@ func TestPush(t *testing.T) {
 
 }
 
+// TestV1PushPopEmpty verifies PushPop on an empty heap returns o.
+func TestV1PushPopEmpty(t *testing.T) {
+	h := &IntHeap{}
+	if v := PushPop(h, 42).(int); v != 42 {
+		t.Fatalf("PushPop empty = %d, want 42", v)
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", h.Len())
+	}
+}
+
+// TestV1PushPopNewMin verifies PushPop returns o when it's the new min.
+func TestV1PushPopNewMin(t *testing.T) {
+	h := &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	if v := PushPop(h, 0).(int); v != 0 {
+		t.Fatalf("PushPop new min = %d, want 0", v)
+	}
+	if h.Len() != 7 {
+		t.Fatalf("Len = %d, want 7", h.Len())
+	}
+	if !Verify(h) {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestV1PushPopReplaces verifies PushPop evicts the current min when o > min.
+func TestV1PushPopReplaces(t *testing.T) {
+	h := &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	if v := PushPop(h, 4).(int); v != 1 {
+		t.Fatalf("PushPop = %d, want 1", v)
+	}
+	if h.Len() != 7 {
+		t.Fatalf("Len = %d, want 7", h.Len())
+	}
+	if !Verify(h) {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestV1PushPopMaxEmpty verifies PushPopMax on an empty heap returns o.
+func TestV1PushPopMaxEmpty(t *testing.T) {
+	h := &IntHeap{}
+	if v := PushPopMax(h, 42).(int); v != 42 {
+		t.Fatalf("PushPopMax empty = %d, want 42", v)
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", h.Len())
+	}
+}
+
+// TestV1PushPopMaxNewMax verifies PushPopMax returns o when it's the new max.
+func TestV1PushPopMaxNewMax(t *testing.T) {
+	h := &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	if v := PushPopMax(h, 100).(int); v != 100 {
+		t.Fatalf("PushPopMax new max = %d, want 100", v)
+	}
+	if h.Len() != 7 {
+		t.Fatalf("Len = %d, want 7", h.Len())
+	}
+	if !Verify(h) {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestV1PushPopMaxReplaces verifies PushPopMax evicts the current max when o < max.
+func TestV1PushPopMaxReplaces(t *testing.T) {
+	h := &IntHeap{1, 9, 5, 4, 6, 3, 2}
+	if v := PushPopMax(h, 4).(int); v != 9 {
+		t.Fatalf("PushPopMax = %d, want 9", v)
+	}
+	if h.Len() != 7 {
+		t.Fatalf("Len = %d, want 7", h.Len())
+	}
+	if !Verify(h) {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestV1PushPopMaxSingle verifies PushPopMax on a single-element heap covers
+// both branches of the l==2 guard: o larger (return o) and o smaller (return
+// the existing element and keep o).
+func TestV1PushPopMaxSingle(t *testing.T) {
+	h := &IntHeap{5}
+	Init(h)
+	if v := PushPopMax(h, 7).(int); v != 7 {
+		t.Fatalf("PushPopMax larger = %d, want 7", v)
+	}
+	if (*h)[0] != 5 {
+		t.Fatalf("remaining = %d, want 5", (*h)[0])
+	}
+
+	h = &IntHeap{5}
+	Init(h)
+	if v := PushPopMax(h, 3).(int); v != 5 {
+		t.Fatalf("PushPopMax smaller = %d, want 5", v)
+	}
+	if (*h)[0] != 3 {
+		t.Fatalf("remaining = %d, want 3", (*h)[0])
+	}
+	if !Verify(h) {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestV1PushPopRandomized verifies PushPop against Push+Pop oracle.
+func TestV1PushPopRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 1
+		h := &IntHeap{}
+		oracle := &IntHeap{}
+		for i := 0; i < n; i++ {
+			v := s.Intn(n)
+			Push(h, v)
+			Push(oracle, v)
+		}
+		o := s.Intn(n * 2)
+		got := PushPop(h, o).(int)
+		Push(oracle, o)
+		want := Pop(oracle).(int)
+		if got != want {
+			t.Fatalf("iter %d: PushPop(%d) = %d, want %d", iter, o, got, want)
+		}
+		if !Verify(h) {
+			t.Fatalf("iter %d: Verify() failed", iter)
+		}
+	}
+}
+
+// TestV1PushPopMaxRandomized verifies PushPopMax against Push+PopMax oracle.
+func TestV1PushPopMaxRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 1
+		h := &IntHeap{}
+		oracle := &IntHeap{}
+		for i := 0; i < n; i++ {
+			v := s.Intn(n)
+			Push(h, v)
+			Push(oracle, v)
+		}
+		o := s.Intn(n * 2)
+		got := PushPopMax(h, o).(int)
+		Push(oracle, o)
+		want := PopMax(oracle).(int)
+		if got != want {
+			t.Fatalf("iter %d: PushPopMax(%d) = %d, want %d", iter, o, got, want)
+		}
+		if !Verify(h) {
+			t.Fatalf("iter %d: Verify() failed", iter)
+		}
+	}
+}
+
 // TestPops is the main table-driven correctness test. For each of 7
 // hand-crafted valid min-max heaps (including cases with duplicates),
 // it verifies:
@@ -883,6 +1037,37 @@ func TestOps(t *testing.T) {
 
 }
 
+// TestV1VerifyInvalid checks that Verify returns false for each of the four
+// classes of min-max heap violation that valid() can detect.
+//
+// Level layout for reference (even = min, odd = max):
+//
+//	level 0 (min):  index 0
+//	level 1 (max):  indices 1, 2
+//	level 2 (min):  indices 3–6
+//	level 3 (max):  indices 7–14
+func TestV1VerifyInvalid(t *testing.T) {
+	cases := []struct {
+		name  string
+		items IntHeap
+	}{
+		// Branch A: max-level parent < min-level child (items[1]=2 < items[3]=9).
+		{"max parent < min child", IntHeap{1, 2, 8, 9}},
+		// Branch B: max-level child < min-level parent (items[1]=3 < items[0]=5).
+		{"max child < min parent", IntHeap{5, 3}},
+		// Branch C: min-level grandchild < min-level grandparent (items[3]=3 < items[0]=5).
+		{"min grandchild < min grandparent", IntHeap{5, 10, 8, 3}},
+		// Branch D: max-level grandchild > max-level grandparent (items[7]=9 > items[1]=5).
+		{"max grandchild > max grandparent", IntHeap{1, 5, 8, 2, 4, 6, 7, 9}},
+	}
+	for _, tc := range cases {
+		h := &tc.items
+		if Verify(h) {
+			t.Errorf("%s: Verify() = true, want false", tc.name)
+		}
+	}
+}
+
 func BenchmarkMin4(b *testing.B) {
 
 	r := &[]int{}
@@ -1077,12 +1262,41 @@ func BenchmarkHeapPush(b *testing.B) {
 
 }
 
-// FuzzV1PushPop interprets a byte sequence as heap commands: '<' = Pop,
-// '>' = PopMax, anything else = Push(byte). Validates every result against
-// a sorted-slice oracle.
+func BenchmarkV1PushPop(b *testing.B) {
+	s := _newRand()
+	h := &IntHeap{}
+	for i := 0; i < 10000; i++ {
+		Push(h, s.Intn(10000))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		PushPop(h, s.Intn(10000))
+	}
+}
+
+func BenchmarkV1PushPopMax(b *testing.B) {
+	s := _newRand()
+	h := &IntHeap{}
+	for i := 0; i < 10000; i++ {
+		Push(h, s.Intn(10000))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		PushPopMax(h, s.Intn(10000))
+	}
+}
+
+// FuzzV1PushPop interprets a byte sequence as heap commands:
+//
+//	'<' = Pop, '>' = PopMax,
+//	'{' + next byte = PushPop(byte), '}' + next byte = PushPopMax(byte),
+//	anything else = Push(byte).
+//
+// Validates every result against a sorted-slice oracle.
 func FuzzV1PushPop(f *testing.F) {
 	f.Add([]byte{10, 5, 3, 8, '<', '>', 1, '<', 7, '>'})
 	f.Add([]byte{1, 1, 1, '<', '<', '<'})
+	f.Add([]byte{'{', 5, '}', 3, '<', '>'})
 	f.Add([]byte{})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
@@ -1090,7 +1304,8 @@ func FuzzV1PushPop(f *testing.F) {
 		Init(h)
 		var oracle sortedOracle
 
-		for _, c := range data {
+		for i := 0; i < len(data); i++ {
+			c := data[i]
 			switch c {
 			case '<':
 				if h.Len() > 0 {
@@ -1107,6 +1322,30 @@ func FuzzV1PushPop(f *testing.F) {
 					if got != want {
 						t.Fatalf("PopMax: got %d, want %d", got, want)
 					}
+				}
+			case '{':
+				i++
+				if i >= len(data) {
+					continue
+				}
+				v := int(data[i])
+				oracle.push(v)
+				want := oracle.popMin()
+				got := PushPop(h, v).(int)
+				if got != want {
+					t.Fatalf("PushPop(%d): got %d, want %d", v, got, want)
+				}
+			case '}':
+				i++
+				if i >= len(data) {
+					continue
+				}
+				v := int(data[i])
+				oracle.push(v)
+				want := oracle.popMax()
+				got := PushPopMax(h, v).(int)
+				if got != want {
+					t.Fatalf("PushPopMax(%d): got %d, want %d", v, got, want)
 				}
 			default:
 				v := int(c)

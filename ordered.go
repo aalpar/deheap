@@ -23,7 +23,10 @@
 
 package deheap
 
-import "cmp"
+import (
+	"cmp"
+	"iter"
+)
 
 // Deheap is a type-safe doubly-ended heap for cmp.Ordered types.
 //
@@ -39,7 +42,8 @@ import "cmp"
 //	h.Pop()     // 1  — O(log n) remove minimum
 //	h.PopMax()  // 9  — O(log n) remove maximum
 type Deheap[T cmp.Ordered] struct {
-	items []T
+	items   []T
+	maxSize int // 0 = unbounded
 }
 
 // New returns an empty Deheap.
@@ -64,7 +68,48 @@ func From[T cmp.Ordered](items ...T) *Deheap[T] {
 	return q
 }
 
-// Push adds an element to the heap.
+// NewBounded returns an empty Deheap with a maximum size of maxSize.
+// It panics if maxSize <= 0.
+func NewBounded[T cmp.Ordered](maxSize int) *Deheap[T] {
+	if maxSize <= 0 {
+		panic("deheap: NewBounded maxSize must be positive")
+	}
+	return &Deheap[T]{maxSize: maxSize}
+}
+
+// FromBounded constructs a bounded Deheap from the given elements.
+// If more items are provided than maxSize, the largest elements are
+// discarded, keeping only the maxSize smallest.
+//
+// It panics if maxSize <= 0.
+func FromBounded[T cmp.Ordered](maxSize int, items ...T) *Deheap[T] {
+	if maxSize <= 0 {
+		panic("deheap: FromBounded maxSize must be positive")
+	}
+	n := min(len(items), maxSize)
+	q := &Deheap[T]{items: make([]T, n), maxSize: maxSize}
+	copy(q.items, items[:n])
+	l := len(q.items)
+	if !orderedValid(q.items, l) {
+		for i := (l - 1) / 2; i >= 0; i-- {
+			orderedBubbledown(q.items, l, isMinHeap(i), i)
+		}
+	}
+	for _, item := range items[n:] {
+		q.Offer(item)
+	}
+	return q
+}
+
+// MaxLen returns the capacity set by NewBounded or FromBounded.
+// This limit is enforced by Offer; Push does not check it.
+// Returns 0 for unbounded heaps.
+func (p *Deheap[T]) MaxLen() int {
+	return p.maxSize
+}
+
+// Push adds an element to the heap. It does not check MaxLen; use
+// Offer to respect a bounded heap's capacity.
 // Time complexity is O(log n), where n = h.Len().
 func (p *Deheap[T]) Push(o T) {
 	p.items = append(p.items, o)
@@ -164,6 +209,69 @@ func (p *Deheap[T]) Fix(i int) {
 	}
 }
 
+// PushPop pushes o onto the heap and then pops and returns the minimum
+// element. It is more efficient than a Push followed by a Pop because
+// it avoids growing the slice and skips the bubble-up step.
+//
+// The returned element is the smaller of o and the previous minimum.
+// If the heap is empty, o is returned.
+func (p *Deheap[T]) PushPop(o T) T {
+	if len(p.items) == 0 || o <= p.items[0] {
+		return o
+	}
+	old := p.items[0]
+	p.items[0] = o
+	orderedBubbledown(p.items, len(p.items), true, 0)
+	return old
+}
+
+// PushPopMax pushes o onto the heap and then pops and returns the maximum
+// element. It is more efficient than a Push followed by a PopMax because
+// it avoids growing the slice.
+//
+// The returned element is the larger of o and the previous maximum.
+// If the heap is empty, o is returned.
+func (p *Deheap[T]) PushPopMax(o T) T {
+	if len(p.items) == 0 {
+		return o
+	}
+	if len(p.items) == 1 {
+		if o >= p.items[0] {
+			return o
+		}
+		old := p.items[0]
+		p.items[0] = o
+		return old
+	}
+	maxIdx := orderedMin2(p.items, len(p.items), false, 1)
+	if o >= p.items[maxIdx] {
+		return o
+	}
+	old := p.items[maxIdx]
+	p.items[maxIdx] = o
+	p.Fix(maxIdx)
+	return old
+}
+
+// Offer adds o to the heap. If the heap has a maximum size and is at
+// capacity, the largest element is evicted. If o itself is the largest,
+// it is returned immediately without modifying the heap.
+//
+// For unbounded heaps (MaxLen() == 0), Offer behaves like Push and
+// never evicts.
+//
+// Returns the element not retained and true if the heap was at capacity
+// (o was evicted to make room, or o itself was rejected as the largest);
+// returns the zero value and false if o was simply added.
+func (p *Deheap[T]) Offer(o T) (evicted T, didEvict bool) {
+	if p.maxSize == 0 || len(p.items) < p.maxSize {
+		p.Push(o)
+		return evicted, false
+	}
+	evicted = p.PushPopMax(o)
+	return evicted, true
+}
+
 // Len returns the number of elements in the heap.
 func (p *Deheap[T]) Len() int {
 	return len(p.items)
@@ -204,6 +312,36 @@ func (p *Deheap[T]) PeekMax() T {
 // Time complexity is O(n), where n = p.Len().
 func (p *Deheap[T]) Verify() bool {
 	return orderedValid(p.items, len(p.items))
+}
+
+// DrainAsc returns an iterator that yields all elements in ascending order,
+// consuming the heap. Breaking out of the loop early leaves the heap valid
+// with the remaining un-yielded elements still in it.
+//
+// Time complexity is O(n log n) for a full drain.
+func (p *Deheap[T]) DrainAsc() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for len(p.items) > 0 {
+			if !yield(p.Pop()) {
+				return
+			}
+		}
+	}
+}
+
+// DrainDesc returns an iterator that yields all elements in descending order,
+// consuming the heap. Breaking out of the loop early leaves the heap valid
+// with the remaining un-yielded elements still in it.
+//
+// Time complexity is O(n log n) for a full drain.
+func (p *Deheap[T]) DrainDesc() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for len(p.items) > 0 {
+			if !yield(p.PopMax()) {
+				return
+			}
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------

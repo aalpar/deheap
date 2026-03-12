@@ -305,19 +305,25 @@ func TestOrderedRandomRemove(t *testing.T) {
 	}
 }
 
-// FuzzOrderedPushPop interprets a byte sequence as heap commands: '<' = Pop,
-// '>' = PopMax, anything else = Push(byte). Validates every result against
-// a sorted-slice oracle.
+// FuzzOrderedPushPop interprets a byte sequence as heap commands:
+//
+//	'<' = Pop, '>' = PopMax,
+//	'{' + next byte = PushPop(byte), '}' + next byte = PushPopMax(byte),
+//	anything else = Push(byte).
+//
+// Validates every result against a sorted-slice oracle.
 func FuzzOrderedPushPop(f *testing.F) {
 	f.Add([]byte{10, 5, 3, 8, '<', '>', 1, '<', 7, '>'})
 	f.Add([]byte{1, 1, 1, '<', '<', '<'})
+	f.Add([]byte{'{', 5, '}', 3, '<', '>'})
 	f.Add([]byte{})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		h := New[int]()
 		var oracle []int // kept sorted
 
-		for _, c := range data {
+		for i := 0; i < len(data); i++ {
+			c := data[i]
 			switch c {
 			case '<':
 				if h.Len() > 0 {
@@ -337,13 +343,47 @@ func FuzzOrderedPushPop(f *testing.F) {
 						t.Fatalf("PopMax: got %d, want %d", got, want)
 					}
 				}
+			case '{':
+				i++
+				if i >= len(data) {
+					continue
+				}
+				v := int(data[i])
+				// Oracle: insert v, pop min.
+				j := sort.SearchInts(oracle, v)
+				oracle = append(oracle, 0)
+				copy(oracle[j+1:], oracle[j:])
+				oracle[j] = v
+				want := oracle[0]
+				oracle = oracle[1:]
+				got := h.PushPop(v)
+				if got != want {
+					t.Fatalf("PushPop(%d): got %d, want %d", v, got, want)
+				}
+			case '}':
+				i++
+				if i >= len(data) {
+					continue
+				}
+				v := int(data[i])
+				// Oracle: insert v, pop max.
+				j := sort.SearchInts(oracle, v)
+				oracle = append(oracle, 0)
+				copy(oracle[j+1:], oracle[j:])
+				oracle[j] = v
+				want := oracle[len(oracle)-1]
+				oracle = oracle[:len(oracle)-1]
+				got := h.PushPopMax(v)
+				if got != want {
+					t.Fatalf("PushPopMax(%d): got %d, want %d", v, got, want)
+				}
 			default:
 				v := int(c)
 				h.Push(v)
-				i := sort.SearchInts(oracle, v)
+				j := sort.SearchInts(oracle, v)
 				oracle = append(oracle, 0)
-				copy(oracle[i+1:], oracle[i:])
-				oracle[i] = v
+				copy(oracle[j+1:], oracle[j:])
+				oracle[j] = v
 			}
 			if !h.Verify() {
 				t.Fatalf("Verify() failed")
@@ -727,6 +767,694 @@ func TestOrderedNew(t *testing.T) {
 	}
 }
 
+// TestNewBounded verifies NewBounded creates a heap with the correct max size.
+func TestNewBounded(t *testing.T) {
+	h := NewBounded[int](5)
+	if h.MaxLen() != 5 {
+		t.Fatalf("MaxLen = %d, want 5", h.MaxLen())
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", h.Len())
+	}
+}
+
+// TestNewBoundedPanicsOnZeroOrNeg verifies NewBounded panics on non-positive maxSize.
+func TestNewBoundedPanicsOnZeroOrNeg(t *testing.T) {
+	for _, v := range []int{0, -1, -100} {
+		func() {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Fatalf("NewBounded(%d) did not panic", v)
+				}
+			}()
+			NewBounded[int](v)
+		}()
+	}
+}
+
+// TestMaxLenUnbounded verifies MaxLen returns 0 for unbounded heaps.
+func TestMaxLenUnbounded(t *testing.T) {
+	h := New[int]()
+	if h.MaxLen() != 0 {
+		t.Fatalf("MaxLen = %d, want 0", h.MaxLen())
+	}
+	h2 := From(1, 2, 3)
+	if h2.MaxLen() != 0 {
+		t.Fatalf("MaxLen = %d, want 0", h2.MaxLen())
+	}
+}
+
+// TestOrderedPushPopEmpty verifies PushPop on an empty heap returns the
+// pushed element without modifying the heap.
+func TestOrderedPushPopEmpty(t *testing.T) {
+	h := New[int]()
+	if v := h.PushPop(42); v != 42 {
+		t.Fatalf("PushPop empty = %d, want 42", v)
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", h.Len())
+	}
+}
+
+// TestOrderedPushPopNewMin verifies PushPop returns the pushed element
+// when it is smaller than the current minimum (no heap modification).
+func TestOrderedPushPopNewMin(t *testing.T) {
+	h := From(3, 7, 5)
+	if v := h.PushPop(1); v != 1 {
+		t.Fatalf("PushPop new min = %d, want 1", v)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOrderedPushPopEqual verifies PushPop when the pushed element
+// equals the current minimum (returns the pushed element).
+func TestOrderedPushPopEqual(t *testing.T) {
+	h := From(3, 7, 5)
+	if v := h.PushPop(3); v != 3 {
+		t.Fatalf("PushPop equal = %d, want 3", v)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOrderedPushPopReplaces verifies PushPop replaces the root when
+// the pushed element is larger than the current minimum.
+func TestOrderedPushPopReplaces(t *testing.T) {
+	h := From(1, 9, 5, 4, 6, 3, 2)
+	v := h.PushPop(4)
+	if v != 1 {
+		t.Fatalf("PushPop = %d, want 1", v)
+	}
+	if h.Len() != 7 {
+		t.Fatalf("Len = %d, want 7", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+	var got []int
+	for h.Len() > 0 {
+		got = append(got, h.Pop())
+	}
+	want := []int{2, 3, 4, 4, 5, 6, 9}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("drain = %v, want %v", got, want)
+	}
+}
+
+// TestOrderedPushPopSingle verifies PushPop on a single-element heap.
+func TestOrderedPushPopSingle(t *testing.T) {
+	h := From(5)
+	if v := h.PushPop(3); v != 3 {
+		t.Fatalf("PushPop smaller = %d, want 3", v)
+	}
+	if h.Peek() != 5 {
+		t.Fatalf("remaining = %d, want 5", h.Peek())
+	}
+
+	h = From(5)
+	if v := h.PushPop(7); v != 5 {
+		t.Fatalf("PushPop larger = %d, want 5", v)
+	}
+	if h.Peek() != 7 {
+		t.Fatalf("remaining = %d, want 7", h.Peek())
+	}
+}
+
+// TestOrderedPushPopRandomized verifies PushPop against a Push+Pop oracle.
+func TestOrderedPushPopRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 1
+		h := New[int]()
+		oracle := New[int]()
+		for i := 0; i < n; i++ {
+			v := s.Intn(n)
+			h.Push(v)
+			oracle.Push(v)
+		}
+
+		o := s.Intn(n * 2)
+		got := h.PushPop(o)
+		oracle.Push(o)
+		want := oracle.Pop()
+		if got != want {
+			t.Fatalf("iter %d: PushPop(%d) = %d, want %d", iter, o, got, want)
+		}
+		if !h.Verify() {
+			t.Fatalf("iter %d: Verify() failed", iter)
+		}
+		for h.Len() > 0 {
+			hv := h.Pop()
+			ov := oracle.Pop()
+			if hv != ov {
+				t.Fatalf("iter %d: drain mismatch %d != %d", iter, hv, ov)
+			}
+		}
+	}
+}
+
+// TestOrderedPushPopMaxEmpty verifies PushPopMax on an empty heap returns
+// the pushed element without modifying the heap.
+func TestOrderedPushPopMaxEmpty(t *testing.T) {
+	h := New[int]()
+	if v := h.PushPopMax(42); v != 42 {
+		t.Fatalf("PushPopMax empty = %d, want 42", v)
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", h.Len())
+	}
+}
+
+// TestOrderedPushPopMaxNewMax verifies PushPopMax returns the pushed element
+// when it is >= the current maximum (no heap modification).
+func TestOrderedPushPopMaxNewMax(t *testing.T) {
+	h := From(3, 7, 5)
+	if v := h.PushPopMax(10); v != 10 {
+		t.Fatalf("PushPopMax new max = %d, want 10", v)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOrderedPushPopMaxEqual verifies PushPopMax when pushed element
+// equals the current maximum (returns it without modifying heap).
+func TestOrderedPushPopMaxEqual(t *testing.T) {
+	h := From(3, 7, 5)
+	if v := h.PushPopMax(7); v != 7 {
+		t.Fatalf("PushPopMax equal = %d, want 7", v)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOrderedPushPopMaxReplaces verifies PushPopMax evicts the current max
+// when the pushed element is smaller.
+func TestOrderedPushPopMaxReplaces(t *testing.T) {
+	h := From(1, 9, 5, 4, 6, 3, 2)
+	v := h.PushPopMax(4)
+	if v != 9 {
+		t.Fatalf("PushPopMax = %d, want 9", v)
+	}
+	if h.Len() != 7 {
+		t.Fatalf("Len = %d, want 7", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOrderedPushPopMaxSingle verifies PushPopMax on a single-element heap.
+func TestOrderedPushPopMaxSingle(t *testing.T) {
+	h := From(5)
+	if v := h.PushPopMax(7); v != 7 {
+		t.Fatalf("PushPopMax larger = %d, want 7", v)
+	}
+	if h.Peek() != 5 {
+		t.Fatalf("remaining = %d, want 5", h.Peek())
+	}
+
+	h = From(5)
+	if v := h.PushPopMax(3); v != 5 {
+		t.Fatalf("PushPopMax smaller = %d, want 5", v)
+	}
+	if h.Peek() != 3 {
+		t.Fatalf("remaining = %d, want 3", h.Peek())
+	}
+}
+
+// TestOrderedPushPopMaxTwo verifies PushPopMax on a two-element heap.
+func TestOrderedPushPopMaxTwo(t *testing.T) {
+	h := From(3, 7)
+	if v := h.PushPopMax(5); v != 7 {
+		t.Fatalf("PushPopMax = %d, want 7", v)
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+
+	h = From(3, 7)
+	if v := h.PushPopMax(10); v != 10 {
+		t.Fatalf("PushPopMax larger = %d, want 10", v)
+	}
+	if h.Len() != 2 {
+		t.Fatalf("Len = %d, want 2", h.Len())
+	}
+
+	h = From(3, 7)
+	if v := h.PushPopMax(1); v != 7 {
+		t.Fatalf("PushPopMax smaller = %d, want 7", v)
+	}
+	if h.Peek() != 1 {
+		t.Fatalf("Peek = %d, want 1", h.Peek())
+	}
+}
+
+// TestOrderedPushPopMaxRandomized verifies PushPopMax against a Push+PopMax oracle.
+func TestOrderedPushPopMaxRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 1
+		h := New[int]()
+		oracle := New[int]()
+		for i := 0; i < n; i++ {
+			v := s.Intn(n)
+			h.Push(v)
+			oracle.Push(v)
+		}
+
+		o := s.Intn(n * 2)
+		got := h.PushPopMax(o)
+		oracle.Push(o)
+		want := oracle.PopMax()
+		if got != want {
+			t.Fatalf("iter %d: PushPopMax(%d) = %d, want %d", iter, o, got, want)
+		}
+		if !h.Verify() {
+			t.Fatalf("iter %d: Verify() failed", iter)
+		}
+		for h.Len() > 0 {
+			hv := h.Pop()
+			ov := oracle.Pop()
+			if hv != ov {
+				t.Fatalf("iter %d: drain mismatch %d != %d", iter, hv, ov)
+			}
+		}
+	}
+}
+
+// TestDrainAscEmpty verifies DrainAsc on an empty heap yields nothing.
+func TestDrainAscEmpty(t *testing.T) {
+	h := New[int]()
+	count := 0
+	for range h.DrainAsc() {
+		count++
+	}
+	if count != 0 {
+		t.Fatalf("DrainAsc empty yielded %d elements", count)
+	}
+}
+
+// TestDrainAsc verifies DrainAsc yields elements in ascending order.
+func TestDrainAsc(t *testing.T) {
+	h := From(5, 1, 9, 3, 7)
+	var got []int
+	for v := range h.DrainAsc() {
+		got = append(got, v)
+	}
+	want := []int{1, 3, 5, 7, 9}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DrainAsc = %v, want %v", got, want)
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len after drain = %d, want 0", h.Len())
+	}
+}
+
+// TestDrainDescEmpty verifies DrainDesc on an empty heap yields nothing.
+func TestDrainDescEmpty(t *testing.T) {
+	h := New[int]()
+	count := 0
+	for range h.DrainDesc() {
+		count++
+	}
+	if count != 0 {
+		t.Fatalf("DrainDesc empty yielded %d elements", count)
+	}
+}
+
+// TestDrainDesc verifies DrainDesc yields elements in descending order.
+func TestDrainDesc(t *testing.T) {
+	h := From(5, 1, 9, 3, 7)
+	var got []int
+	for v := range h.DrainDesc() {
+		got = append(got, v)
+	}
+	want := []int{9, 7, 5, 3, 1}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DrainDesc = %v, want %v", got, want)
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len after drain = %d, want 0", h.Len())
+	}
+}
+
+// TestDrainAscEarlyBreak verifies early termination leaves the heap valid.
+func TestDrainAscEarlyBreak(t *testing.T) {
+	h := From(5, 1, 9, 3, 7)
+	var got []int
+	for v := range h.DrainAsc() {
+		if v > 3 {
+			break
+		}
+		got = append(got, v)
+	}
+	want := []int{1, 3}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DrainAsc early = %v, want %v", got, want)
+	}
+	if h.Len() != 2 {
+		t.Fatalf("remaining Len = %d, want 2", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed after early break")
+	}
+}
+
+// TestDrainDescEarlyBreak verifies early termination of DrainDesc.
+func TestDrainDescEarlyBreak(t *testing.T) {
+	h := From(5, 1, 9, 3, 7)
+	var got []int
+	for v := range h.DrainDesc() {
+		if v < 7 {
+			break
+		}
+		got = append(got, v)
+	}
+	want := []int{9, 7}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DrainDesc early = %v, want %v", got, want)
+	}
+	if h.Len() != 2 {
+		t.Fatalf("remaining Len = %d, want 2", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed after early break")
+	}
+}
+
+// TestDrainAscRandomized compares DrainAsc output to sort.Ints oracle.
+func TestDrainAscRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 1
+		items := make([]int, n)
+		for i := range items {
+			items[i] = s.Intn(n)
+		}
+		h := From(items...)
+		want := make([]int, n)
+		copy(want, items)
+		sort.Ints(want)
+		var got []int
+		for v := range h.DrainAsc() {
+			got = append(got, v)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("iter %d: DrainAsc = %v, want %v", iter, got, want)
+		}
+	}
+}
+
+// TestDrainDescRandomized compares DrainDesc output to reverse-sorted oracle.
+func TestDrainDescRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 1
+		items := make([]int, n)
+		for i := range items {
+			items[i] = s.Intn(n)
+		}
+		h := From(items...)
+		want := make([]int, n)
+		copy(want, items)
+		sort.Sort(sort.Reverse(sort.IntSlice(want)))
+		var got []int
+		for v := range h.DrainDesc() {
+			got = append(got, v)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("iter %d: DrainDesc = %v, want %v", iter, got, want)
+		}
+	}
+}
+
+// TestOfferUnbounded verifies Offer on an unbounded heap behaves like Push.
+func TestOfferUnbounded(t *testing.T) {
+	h := New[int]()
+	evicted, didEvict := h.Offer(5)
+	if didEvict {
+		t.Fatal("Offer on unbounded heap evicted")
+	}
+	var zero int
+	if evicted != zero {
+		t.Fatalf("evicted = %v, want zero", evicted)
+	}
+	if h.Len() != 1 {
+		t.Fatalf("Len = %d, want 1", h.Len())
+	}
+}
+
+// TestOfferUnderCapacity verifies Offer when bounded heap is not full.
+func TestOfferUnderCapacity(t *testing.T) {
+	h := NewBounded[int](5)
+	for i := 0; i < 4; i++ {
+		_, didEvict := h.Offer(i)
+		if didEvict {
+			t.Fatalf("Offer(%d) evicted when under capacity", i)
+		}
+	}
+	if h.Len() != 4 {
+		t.Fatalf("Len = %d, want 4", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOfferAtCapacityReject verifies Offer rejects elements >= current max.
+func TestOfferAtCapacityReject(t *testing.T) {
+	h := NewBounded[int](3)
+	h.Push(1)
+	h.Push(5)
+	h.Push(3)
+
+	evicted, didEvict := h.Offer(5)
+	if !didEvict {
+		t.Fatal("Offer(5) should evict")
+	}
+	if evicted != 5 {
+		t.Fatalf("evicted = %d, want 5 (rejected)", evicted)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+
+	evicted, didEvict = h.Offer(100)
+	if !didEvict {
+		t.Fatal("Offer(100) should evict")
+	}
+	if evicted != 100 {
+		t.Fatalf("evicted = %d, want 100 (rejected)", evicted)
+	}
+}
+
+// TestOfferAtCapacityEvict verifies Offer evicts the max and inserts o.
+func TestOfferAtCapacityEvict(t *testing.T) {
+	h := NewBounded[int](3)
+	h.Push(1)
+	h.Push(5)
+	h.Push(3)
+
+	evicted, didEvict := h.Offer(2)
+	if !didEvict {
+		t.Fatal("Offer(2) should evict")
+	}
+	if evicted != 5 {
+		t.Fatalf("evicted = %d, want 5", evicted)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+	if h.PeekMax() != 3 {
+		t.Fatalf("PeekMax = %d, want 3", h.PeekMax())
+	}
+}
+
+// TestOfferSingleCapacity verifies Offer on a bounded heap of size 1.
+func TestOfferSingleCapacity(t *testing.T) {
+	h := NewBounded[int](1)
+	_, didEvict := h.Offer(5)
+	if didEvict {
+		t.Fatal("first Offer should not evict")
+	}
+
+	evicted, didEvict := h.Offer(3)
+	if !didEvict {
+		t.Fatal("second Offer should evict")
+	}
+	if evicted != 5 {
+		t.Fatalf("evicted = %d, want 5", evicted)
+	}
+	if h.Peek() != 3 {
+		t.Fatalf("Peek = %d, want 3", h.Peek())
+	}
+
+	evicted, didEvict = h.Offer(10)
+	if !didEvict {
+		t.Fatal("Offer(10) should evict")
+	}
+	if evicted != 10 {
+		t.Fatalf("evicted = %d, want 10 (rejected)", evicted)
+	}
+}
+
+// TestFromBoundedUnderCapacity verifies FromBounded with fewer items than maxSize.
+func TestFromBoundedUnderCapacity(t *testing.T) {
+	h := FromBounded[int](5, 1, 3, 2)
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if h.MaxLen() != 5 {
+		t.Fatalf("MaxLen = %d, want 5", h.MaxLen())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestFromBoundedExactCapacity verifies FromBounded with exactly maxSize items.
+func TestFromBoundedExactCapacity(t *testing.T) {
+	h := FromBounded[int](3, 5, 1, 3)
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestFromBoundedOverCapacity verifies FromBounded keeps the N smallest elements.
+func TestFromBoundedOverCapacity(t *testing.T) {
+	h := FromBounded[int](3, 9, 1, 7, 3, 5)
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+	// Should contain the 3 smallest: 1, 3, 5
+	var got []int
+	for v := range h.DrainAsc() {
+		got = append(got, v)
+	}
+	want := []int{1, 3, 5}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("FromBounded drain = %v, want %v", got, want)
+	}
+}
+
+// TestFromBoundedEmpty verifies FromBounded with no items.
+func TestFromBoundedEmpty(t *testing.T) {
+	h := FromBounded[int](5)
+	if h.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", h.Len())
+	}
+	if h.MaxLen() != 5 {
+		t.Fatalf("MaxLen = %d, want 5", h.MaxLen())
+	}
+}
+
+// TestFromBoundedPanicsOnNonPositive verifies FromBounded panics on maxSize <= 0.
+func TestFromBoundedPanicsOnNonPositive(t *testing.T) {
+	for _, v := range []int{0, -1, -100} {
+		func() {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Fatalf("FromBounded(%d) did not panic", v)
+				}
+			}()
+			FromBounded[int](v)
+		}()
+	}
+}
+
+// TestOfferRandomized stress-tests Offer with a sorted-oracle.
+// Builds a bounded heap and streams n values through it, maintaining
+// a sorted-slice oracle of the maxSize smallest values seen.
+func TestOfferRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for iter := 0; iter < 1000; iter++ {
+		maxSize := s.Intn(30) + 1
+		n := s.Intn(100) + maxSize
+		h := NewBounded[int](maxSize)
+		var oracle []int
+
+		for i := 0; i < n; i++ {
+			v := s.Intn(n)
+			h.Offer(v)
+			// Insert v into sorted oracle, keep only maxSize smallest.
+			j := sort.SearchInts(oracle, v)
+			oracle = append(oracle, 0)
+			copy(oracle[j+1:], oracle[j:])
+			oracle[j] = v
+			if len(oracle) > maxSize {
+				oracle = oracle[:maxSize]
+			}
+		}
+
+		if h.Len() != len(oracle) {
+			t.Fatalf("iter %d: Len = %d, want %d", iter, h.Len(), len(oracle))
+		}
+		if !h.Verify() {
+			t.Fatalf("iter %d: Verify() failed", iter)
+		}
+		for i, want := range oracle {
+			got := h.Pop()
+			if got != want {
+				t.Fatalf("iter %d: Pop[%d] = %d, want %d", iter, i, got, want)
+			}
+		}
+	}
+}
+
+// TestOrderedVerifyInvalid checks that Verify returns false for each of the
+// four classes of min-max heap violation that orderedValid() can detect.
+// The same violation layouts as TestV1VerifyInvalid — shared level structure.
+func TestOrderedVerifyInvalid(t *testing.T) {
+	cases := []struct {
+		name  string
+		items []int
+	}{
+		// Branch A: max-level parent < min-level child (items[1]=2 < items[3]=9).
+		{"max parent < min child", []int{1, 2, 8, 9}},
+		// Branch B: max-level child < min-level parent (items[1]=3 < items[0]=5).
+		{"max child < min parent", []int{5, 3}},
+		// Branch C: min-level grandchild < min-level grandparent (items[3]=3 < items[0]=5).
+		{"min grandchild < min grandparent", []int{5, 10, 8, 3}},
+		// Branch D: max-level grandchild > max-level grandparent (items[7]=9 > items[1]=5).
+		{"max grandchild > max grandparent", []int{1, 5, 8, 2, 4, 6, 7, 9}},
+	}
+	for _, tc := range cases {
+		h := &Deheap[int]{items: tc.items}
+		if h.Verify() {
+			t.Errorf("%s: Verify() = true, want false", tc.name)
+		}
+	}
+}
+
 func BenchmarkOrderedPush(b *testing.B) {
 	r := make([]int, b.N)
 	for i := range r {
@@ -799,5 +1527,67 @@ func BenchmarkOrderedPushPop(b *testing.B) {
 	}
 	for i := 0; i < b.N; i++ {
 		h.Pop()
+	}
+}
+
+func BenchmarkOrderedGenericPushPop(b *testing.B) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	h := New[int]()
+	for i := 0; i < 10000; i++ {
+		h.Push(s.Intn(10000))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.PushPop(s.Intn(10000))
+	}
+}
+
+func BenchmarkOrderedGenericPushPopMax(b *testing.B) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	h := New[int]()
+	for i := 0; i < 10000; i++ {
+		h.Push(s.Intn(10000))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.PushPopMax(s.Intn(10000))
+	}
+}
+
+func BenchmarkOrderedDrainAsc(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		h := New[int]()
+		for j := 0; j < 10000; j++ {
+			h.Push(j)
+		}
+		b.StartTimer()
+		for range h.DrainAsc() {
+		}
+	}
+}
+
+func BenchmarkOrderedDrainDesc(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		h := New[int]()
+		for j := 0; j < 10000; j++ {
+			h.Push(j)
+		}
+		b.StartTimer()
+		for range h.DrainDesc() {
+		}
+	}
+}
+
+func BenchmarkOrderedOffer(b *testing.B) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	h := NewBounded[int](1000)
+	for i := 0; i < 1000; i++ {
+		h.Push(s.Intn(10000))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.Offer(s.Intn(10000))
 	}
 }

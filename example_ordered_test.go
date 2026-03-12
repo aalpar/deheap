@@ -57,3 +57,56 @@ func ExampleDeheap_Verify() {
 	// true
 	// true
 }
+
+func ExampleDeheap_PushPop() {
+	h := deheap.From(2, 4, 6, 8)
+	fmt.Println(h.PushPop(5)) // pushes 5, pops min (2)
+	fmt.Println(h.PushPop(1)) // pushes 1, pops min (1 — it's already ≤ current min 4)
+	// Output:
+	// 2
+	// 1
+}
+
+func ExampleDeheap_PushPopMax() {
+	h := deheap.From(2, 4, 6, 8)
+	fmt.Println(h.PushPopMax(5)) // pushes 5, pops max (8)
+	fmt.Println(h.PushPopMax(9)) // pushes 9, pops max (9 — it's already ≥ current max 6)
+	// Output:
+	// 8
+	// 9
+}
+
+func ExampleDeheap_DrainAsc() {
+	h := deheap.From(5, 1, 9, 3)
+	for v := range h.DrainAsc() {
+		fmt.Print(v, " ")
+	}
+	fmt.Println()
+	// Output:
+	// 1 3 5 9
+}
+
+func ExampleDeheap_DrainDesc() {
+	h := deheap.From(5, 1, 9, 3)
+	for v := range h.DrainDesc() {
+		fmt.Print(v, " ")
+	}
+	fmt.Println()
+	// Output:
+	// 9 5 3 1
+}
+
+func ExampleDeheap_Offer() {
+	h := deheap.FromBounded(3, 5, 1, 9)
+	fmt.Println(h.Len()) // 3 (built from 3 items)
+
+	evicted, didEvict := h.Offer(3)
+	fmt.Println(evicted, didEvict) // 9 true (3 < 9, so 9 is evicted)
+
+	evicted, didEvict = h.Offer(10)
+	fmt.Println(evicted, didEvict) // 10 true (10 >= max, returned as-is; heap unchanged)
+	// Output:
+	// 3
+	// 9 true
+	// 10 true
+}
