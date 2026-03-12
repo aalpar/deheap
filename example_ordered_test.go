@@ -104,7 +104,7 @@ func ExampleDeheap_Offer() {
 	fmt.Println(evicted, didEvict) // 9 true (3 < 9, so 9 is evicted)
 
 	evicted, didEvict = h.Offer(10)
-	fmt.Println(evicted, didEvict) // 10 true (10 >= max, rejected)
+	fmt.Println(evicted, didEvict) // 10 true (10 >= max, returned as-is; heap unchanged)
 	// Output:
 	// 3
 	// 9 true
