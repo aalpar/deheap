@@ -489,6 +489,67 @@ func Push(h heap.Interface, o interface{}) {
 	bubbleup(h, isMinHeap(i), i)
 }
 
+// PushPop pushes element o onto the heap and then pops and returns
+// the minimum element. It is more efficient than a Push followed by
+// a Pop because it skips the bubble-up step when o is already the min.
+//
+// Returns o immediately if the heap is empty or o is the new minimum.
+func PushPop(h heap.Interface, o interface{}) interface{} {
+	if h.Len() == 0 {
+		return o
+	}
+	h.Push(o)
+	l := h.Len()
+	last := l - 1
+	// If o (now at last) is <= the root, o is the min — remove and return it.
+	if !h.Less(0, last) {
+		return h.Pop()
+	}
+	// Root is the min. Swap root with o, remove old root, sift o down.
+	h.Swap(0, last)
+	result := h.Pop()
+	bubbledown(h, h.Len(), true, 0)
+	return result
+}
+
+// PushPopMax pushes element o onto the heap and then pops and returns
+// the maximum element. It is more efficient than a Push followed by
+// a PopMax because it skips the bubble-up step when o is already the max.
+//
+// Returns o immediately if the heap is empty or o is the new maximum.
+func PushPopMax(h heap.Interface, o interface{}) interface{} {
+	if h.Len() == 0 {
+		return o
+	}
+	h.Push(o)
+	l := h.Len()
+	last := l - 1
+	if l == 2 {
+		// Two elements: compare items[0] and items[1] (o).
+		// If o >= items[0] (o is the max), remove and return o.
+		if !h.Less(last, 0) {
+			return h.Pop()
+		}
+		// items[0] > o: swap and remove items[0].
+		h.Swap(0, last)
+		return h.Pop()
+	}
+	// Find the current max among indices 1..last-1 (before o was pushed).
+	maxIdx := min2(h, last, false, 1)
+	// If o (at last) >= max, o is the new max — remove and return it.
+	if !h.Less(last, maxIdx) {
+		return h.Pop()
+	}
+	// maxIdx is the max. Swap it with o, remove old max, then use Fix to
+	// restore the heap from maxIdx. Fix handles both upward and downward
+	// sifting, which is necessary because o (now at maxIdx) may be smaller
+	// than the root and would be missed by bubbledown alone.
+	h.Swap(maxIdx, last)
+	result := h.Pop()
+	Fix(h, maxIdx)
+	return result
+}
+
 // valid reports whether h satisfies the min-max heap property.
 //
 // It checks each node against its binary parent (adjacent level type)
