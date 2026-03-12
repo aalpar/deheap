@@ -741,7 +741,6 @@ func TestNewBounded(t *testing.T) {
 // TestNewBoundedPanicsOnZeroOrNeg verifies NewBounded panics on non-positive maxSize.
 func TestNewBoundedPanicsOnZeroOrNeg(t *testing.T) {
 	for _, v := range []int{0, -1, -100} {
-		v := v
 		func() {
 			defer func() {
 				if r := recover(); r == nil {
