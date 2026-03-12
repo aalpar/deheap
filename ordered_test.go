@@ -738,6 +738,21 @@ func TestNewBounded(t *testing.T) {
 	}
 }
 
+// TestNewBoundedPanicsOnZeroOrNeg verifies NewBounded panics on non-positive maxSize.
+func TestNewBoundedPanicsOnZeroOrNeg(t *testing.T) {
+	for _, v := range []int{0, -1, -100} {
+		v := v
+		func() {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Fatalf("NewBounded(%d) did not panic", v)
+				}
+			}()
+			NewBounded[int](v)
+		}()
+	}
+}
+
 // TestMaxLenUnbounded verifies MaxLen returns 0 for unbounded heaps.
 func TestMaxLenUnbounded(t *testing.T) {
 	h := New[int]()

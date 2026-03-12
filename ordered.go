@@ -65,10 +65,12 @@ func From[T cmp.Ordered](items ...T) *Deheap[T] {
 	return q
 }
 
-// NewBounded returns an empty Deheap with a maximum size.
-// When the heap reaches maxSize elements, Offer will evict
-// the largest element to make room.
+// NewBounded returns an empty Deheap with a maximum size of maxSize.
+// It panics if maxSize <= 0.
 func NewBounded[T cmp.Ordered](maxSize int) *Deheap[T] {
+	if maxSize <= 0 {
+		panic("deheap: NewBounded maxSize must be positive")
+	}
 	return &Deheap[T]{maxSize: maxSize}
 }
 
