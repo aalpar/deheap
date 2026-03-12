@@ -384,6 +384,7 @@ func orderedBubbledown[T cmp.Ordered](items []T, l int, min bool, i int) (q int,
 		p := hparent(v)
 		if orderedLess(items, min, p, v) {
 			items[p], items[v] = items[v], items[p]
+			orderedBubbleup(items, isMinHeap(p), p)
 			r = p
 		}
 		i = v
