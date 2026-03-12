@@ -883,6 +883,144 @@ func TestOrderedPushPopRandomized(t *testing.T) {
 	}
 }
 
+// TestOrderedPushPopMaxEmpty verifies PushPopMax on an empty heap returns
+// the pushed element without modifying the heap.
+func TestOrderedPushPopMaxEmpty(t *testing.T) {
+	h := New[int]()
+	if v := h.PushPopMax(42); v != 42 {
+		t.Fatalf("PushPopMax empty = %d, want 42", v)
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", h.Len())
+	}
+}
+
+// TestOrderedPushPopMaxNewMax verifies PushPopMax returns the pushed element
+// when it is >= the current maximum (no heap modification).
+func TestOrderedPushPopMaxNewMax(t *testing.T) {
+	h := From(3, 7, 5)
+	if v := h.PushPopMax(10); v != 10 {
+		t.Fatalf("PushPopMax new max = %d, want 10", v)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOrderedPushPopMaxEqual verifies PushPopMax when pushed element
+// equals the current maximum (returns it without modifying heap).
+func TestOrderedPushPopMaxEqual(t *testing.T) {
+	h := From(3, 7, 5)
+	if v := h.PushPopMax(7); v != 7 {
+		t.Fatalf("PushPopMax equal = %d, want 7", v)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOrderedPushPopMaxReplaces verifies PushPopMax evicts the current max
+// when the pushed element is smaller.
+func TestOrderedPushPopMaxReplaces(t *testing.T) {
+	h := From(1, 9, 5, 4, 6, 3, 2)
+	v := h.PushPopMax(4)
+	if v != 9 {
+		t.Fatalf("PushPopMax = %d, want 9", v)
+	}
+	if h.Len() != 7 {
+		t.Fatalf("Len = %d, want 7", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOrderedPushPopMaxSingle verifies PushPopMax on a single-element heap.
+func TestOrderedPushPopMaxSingle(t *testing.T) {
+	h := From(5)
+	if v := h.PushPopMax(7); v != 7 {
+		t.Fatalf("PushPopMax larger = %d, want 7", v)
+	}
+	if h.Peek() != 5 {
+		t.Fatalf("remaining = %d, want 5", h.Peek())
+	}
+
+	h = From(5)
+	if v := h.PushPopMax(3); v != 5 {
+		t.Fatalf("PushPopMax smaller = %d, want 5", v)
+	}
+	if h.Peek() != 3 {
+		t.Fatalf("remaining = %d, want 3", h.Peek())
+	}
+}
+
+// TestOrderedPushPopMaxTwo verifies PushPopMax on a two-element heap.
+func TestOrderedPushPopMaxTwo(t *testing.T) {
+	h := From(3, 7)
+	if v := h.PushPopMax(5); v != 7 {
+		t.Fatalf("PushPopMax = %d, want 7", v)
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+
+	h = From(3, 7)
+	if v := h.PushPopMax(10); v != 10 {
+		t.Fatalf("PushPopMax larger = %d, want 10", v)
+	}
+	if h.Len() != 2 {
+		t.Fatalf("Len = %d, want 2", h.Len())
+	}
+
+	h = From(3, 7)
+	if v := h.PushPopMax(1); v != 7 {
+		t.Fatalf("PushPopMax smaller = %d, want 7", v)
+	}
+	if h.Peek() != 1 {
+		t.Fatalf("Peek = %d, want 1", h.Peek())
+	}
+}
+
+// TestOrderedPushPopMaxRandomized verifies PushPopMax against a Push+PopMax oracle.
+func TestOrderedPushPopMaxRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 1
+		h := New[int]()
+		oracle := New[int]()
+		for i := 0; i < n; i++ {
+			v := s.Intn(n)
+			h.Push(v)
+			oracle.Push(v)
+		}
+
+		o := s.Intn(n * 2)
+		got := h.PushPopMax(o)
+		oracle.Push(o)
+		want := oracle.PopMax()
+		if got != want {
+			t.Fatalf("iter %d: PushPopMax(%d) = %d, want %d", iter, o, got, want)
+		}
+		if !h.Verify() {
+			t.Fatalf("iter %d: Verify() failed", iter)
+		}
+		for h.Len() > 0 {
+			hv := h.Pop()
+			ov := oracle.Pop()
+			if hv != ov {
+				t.Fatalf("iter %d: drain mismatch %d != %d", iter, hv, ov)
+			}
+		}
+	}
+}
+
 func BenchmarkOrderedPush(b *testing.B) {
 	r := make([]int, b.N)
 	for i := range r {

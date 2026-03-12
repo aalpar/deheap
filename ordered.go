@@ -196,6 +196,36 @@ func (p *Deheap[T]) PushPop(o T) T {
 	return old
 }
 
+// PushPopMax pushes o onto the heap and then pops and returns the maximum
+// element. It is more efficient than a Push followed by a PopMax because
+// it avoids growing the slice.
+//
+// The returned element is the larger of o and the previous maximum.
+// If the heap is empty, o is returned.
+func (p *Deheap[T]) PushPopMax(o T) T {
+	if len(p.items) == 0 {
+		return o
+	}
+	if len(p.items) == 1 {
+		if o >= p.items[0] {
+			return o
+		}
+		old := p.items[0]
+		p.items[0] = o
+		return old
+	}
+	maxIdx := orderedMin2(p.items, len(p.items), false, 1)
+	if o >= p.items[maxIdx] {
+		return o
+	}
+	old := p.items[maxIdx]
+	p.items[maxIdx] = o
+	q, r := orderedBubbledown(p.items, len(p.items), false, maxIdx)
+	orderedBubbleup(p.items, isMinHeap(q), q)
+	orderedBubbleup(p.items, isMinHeap(r), r)
+	return old
+}
+
 // Len returns the number of elements in the heap.
 func (p *Deheap[T]) Len() int {
 	return len(p.items)
