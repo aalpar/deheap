@@ -764,6 +764,125 @@ func TestMaxLenUnbounded(t *testing.T) {
 	}
 }
 
+// TestOrderedPushPopEmpty verifies PushPop on an empty heap returns the
+// pushed element without modifying the heap.
+func TestOrderedPushPopEmpty(t *testing.T) {
+	h := New[int]()
+	if v := h.PushPop(42); v != 42 {
+		t.Fatalf("PushPop empty = %d, want 42", v)
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", h.Len())
+	}
+}
+
+// TestOrderedPushPopNewMin verifies PushPop returns the pushed element
+// when it is smaller than the current minimum (no heap modification).
+func TestOrderedPushPopNewMin(t *testing.T) {
+	h := From(3, 7, 5)
+	if v := h.PushPop(1); v != 1 {
+		t.Fatalf("PushPop new min = %d, want 1", v)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOrderedPushPopEqual verifies PushPop when the pushed element
+// equals the current minimum (returns the pushed element).
+func TestOrderedPushPopEqual(t *testing.T) {
+	h := From(3, 7, 5)
+	if v := h.PushPop(3); v != 3 {
+		t.Fatalf("PushPop equal = %d, want 3", v)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOrderedPushPopReplaces verifies PushPop replaces the root when
+// the pushed element is larger than the current minimum.
+func TestOrderedPushPopReplaces(t *testing.T) {
+	h := From(1, 9, 5, 4, 6, 3, 2)
+	v := h.PushPop(4)
+	if v != 1 {
+		t.Fatalf("PushPop = %d, want 1", v)
+	}
+	if h.Len() != 7 {
+		t.Fatalf("Len = %d, want 7", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+	var got []int
+	for h.Len() > 0 {
+		got = append(got, h.Pop())
+	}
+	want := []int{2, 3, 4, 4, 5, 6, 9}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("drain = %v, want %v", got, want)
+	}
+}
+
+// TestOrderedPushPopSingle verifies PushPop on a single-element heap.
+func TestOrderedPushPopSingle(t *testing.T) {
+	h := From(5)
+	if v := h.PushPop(3); v != 3 {
+		t.Fatalf("PushPop smaller = %d, want 3", v)
+	}
+	if h.Peek() != 5 {
+		t.Fatalf("remaining = %d, want 5", h.Peek())
+	}
+
+	h = From(5)
+	if v := h.PushPop(7); v != 5 {
+		t.Fatalf("PushPop larger = %d, want 5", v)
+	}
+	if h.Peek() != 7 {
+		t.Fatalf("remaining = %d, want 7", h.Peek())
+	}
+}
+
+// TestOrderedPushPopRandomized verifies PushPop against a Push+Pop oracle.
+func TestOrderedPushPopRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 1
+		h := New[int]()
+		oracle := New[int]()
+		for i := 0; i < n; i++ {
+			v := s.Intn(n)
+			h.Push(v)
+			oracle.Push(v)
+		}
+
+		o := s.Intn(n * 2)
+		got := h.PushPop(o)
+		oracle.Push(o)
+		want := oracle.Pop()
+		if got != want {
+			t.Fatalf("iter %d: PushPop(%d) = %d, want %d", iter, o, got, want)
+		}
+		if !h.Verify() {
+			t.Fatalf("iter %d: Verify() failed", iter)
+		}
+		for h.Len() > 0 {
+			hv := h.Pop()
+			ov := oracle.Pop()
+			if hv != ov {
+				t.Fatalf("iter %d: drain mismatch %d != %d", iter, hv, ov)
+			}
+		}
+	}
+}
+
 func BenchmarkOrderedPush(b *testing.B) {
 	r := make([]int, b.N)
 	for i := range r {

@@ -180,6 +180,22 @@ func (p *Deheap[T]) Fix(i int) {
 	}
 }
 
+// PushPop pushes o onto the heap and then pops and returns the minimum
+// element. It is more efficient than a Push followed by a Pop because
+// it avoids growing the slice and skips the bubble-up step.
+//
+// The returned element is the smaller of o and the previous minimum.
+// If the heap is empty, o is returned.
+func (p *Deheap[T]) PushPop(o T) T {
+	if len(p.items) == 0 || o <= p.items[0] {
+		return o
+	}
+	old := p.items[0]
+	p.items[0] = o
+	orderedBubbledown(p.items, len(p.items), true, 0)
+	return old
+}
+
 // Len returns the number of elements in the heap.
 func (p *Deheap[T]) Len() int {
 	return len(p.items)
