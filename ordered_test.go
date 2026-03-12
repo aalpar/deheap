@@ -1021,6 +1021,152 @@ func TestOrderedPushPopMaxRandomized(t *testing.T) {
 	}
 }
 
+// TestDrainAscEmpty verifies DrainAsc on an empty heap yields nothing.
+func TestDrainAscEmpty(t *testing.T) {
+	h := New[int]()
+	count := 0
+	for range h.DrainAsc() {
+		count++
+	}
+	if count != 0 {
+		t.Fatalf("DrainAsc empty yielded %d elements", count)
+	}
+}
+
+// TestDrainAsc verifies DrainAsc yields elements in ascending order.
+func TestDrainAsc(t *testing.T) {
+	h := From(5, 1, 9, 3, 7)
+	var got []int
+	for v := range h.DrainAsc() {
+		got = append(got, v)
+	}
+	want := []int{1, 3, 5, 7, 9}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DrainAsc = %v, want %v", got, want)
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len after drain = %d, want 0", h.Len())
+	}
+}
+
+// TestDrainDescEmpty verifies DrainDesc on an empty heap yields nothing.
+func TestDrainDescEmpty(t *testing.T) {
+	h := New[int]()
+	count := 0
+	for range h.DrainDesc() {
+		count++
+	}
+	if count != 0 {
+		t.Fatalf("DrainDesc empty yielded %d elements", count)
+	}
+}
+
+// TestDrainDesc verifies DrainDesc yields elements in descending order.
+func TestDrainDesc(t *testing.T) {
+	h := From(5, 1, 9, 3, 7)
+	var got []int
+	for v := range h.DrainDesc() {
+		got = append(got, v)
+	}
+	want := []int{9, 7, 5, 3, 1}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DrainDesc = %v, want %v", got, want)
+	}
+	if h.Len() != 0 {
+		t.Fatalf("Len after drain = %d, want 0", h.Len())
+	}
+}
+
+// TestDrainAscEarlyBreak verifies early termination leaves the heap valid.
+func TestDrainAscEarlyBreak(t *testing.T) {
+	h := From(5, 1, 9, 3, 7)
+	var got []int
+	for v := range h.DrainAsc() {
+		if v > 3 {
+			break
+		}
+		got = append(got, v)
+	}
+	want := []int{1, 3}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DrainAsc early = %v, want %v", got, want)
+	}
+	if h.Len() != 2 {
+		t.Fatalf("remaining Len = %d, want 2", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed after early break")
+	}
+}
+
+// TestDrainDescEarlyBreak verifies early termination of DrainDesc.
+func TestDrainDescEarlyBreak(t *testing.T) {
+	h := From(5, 1, 9, 3, 7)
+	var got []int
+	for v := range h.DrainDesc() {
+		if v < 7 {
+			break
+		}
+		got = append(got, v)
+	}
+	want := []int{9, 7}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DrainDesc early = %v, want %v", got, want)
+	}
+	if h.Len() != 2 {
+		t.Fatalf("remaining Len = %d, want 2", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed after early break")
+	}
+}
+
+// TestDrainAscRandomized compares DrainAsc output to sort.Ints oracle.
+func TestDrainAscRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 1
+		items := make([]int, n)
+		for i := range items {
+			items[i] = s.Intn(n)
+		}
+		h := From(items...)
+		want := make([]int, n)
+		copy(want, items)
+		sort.Ints(want)
+		var got []int
+		for v := range h.DrainAsc() {
+			got = append(got, v)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("iter %d: DrainAsc = %v, want %v", iter, got, want)
+		}
+	}
+}
+
+// TestDrainDescRandomized compares DrainDesc output to reverse-sorted oracle.
+func TestDrainDescRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for iter := 0; iter < 1000; iter++ {
+		n := s.Intn(64) + 1
+		items := make([]int, n)
+		for i := range items {
+			items[i] = s.Intn(n)
+		}
+		h := From(items...)
+		want := make([]int, n)
+		copy(want, items)
+		sort.Sort(sort.Reverse(sort.IntSlice(want)))
+		var got []int
+		for v := range h.DrainDesc() {
+			got = append(got, v)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("iter %d: DrainDesc = %v, want %v", iter, got, want)
+		}
+	}
+}
+
 func BenchmarkOrderedPush(b *testing.B) {
 	r := make([]int, b.N)
 	for i := range r {

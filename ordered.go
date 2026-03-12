@@ -23,7 +23,10 @@
 
 package deheap
 
-import "cmp"
+import (
+	"cmp"
+	"iter"
+)
 
 // Deheap is a type-safe doubly-ended heap for cmp.Ordered types.
 //
@@ -220,9 +223,7 @@ func (p *Deheap[T]) PushPopMax(o T) T {
 	}
 	old := p.items[maxIdx]
 	p.items[maxIdx] = o
-	q, r := orderedBubbledown(p.items, len(p.items), false, maxIdx)
-	orderedBubbleup(p.items, isMinHeap(q), q)
-	orderedBubbleup(p.items, isMinHeap(r), r)
+	p.Fix(maxIdx)
 	return old
 }
 
@@ -266,6 +267,36 @@ func (p *Deheap[T]) PeekMax() T {
 // Time complexity is O(n), where n = p.Len().
 func (p *Deheap[T]) Verify() bool {
 	return orderedValid(p.items, len(p.items))
+}
+
+// DrainAsc returns an iterator that yields all elements in ascending order,
+// consuming the heap. Breaking out of the loop early leaves the heap valid
+// with the remaining un-yielded elements still in it.
+//
+// Time complexity is O(n log n) for a full drain.
+func (p *Deheap[T]) DrainAsc() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for len(p.items) > 0 {
+			if !yield(p.Pop()) {
+				return
+			}
+		}
+	}
+}
+
+// DrainDesc returns an iterator that yields all elements in descending order,
+// consuming the heap. Breaking out of the loop early leaves the heap valid
+// with the remaining un-yielded elements still in it.
+//
+// Time complexity is O(n log n) for a full drain.
+func (p *Deheap[T]) DrainDesc() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for len(p.items) > 0 {
+			if !yield(p.PopMax()) {
+				return
+			}
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +415,6 @@ func orderedBubbledown[T cmp.Ordered](items []T, l int, min bool, i int) (q int,
 		p := hparent(v)
 		if orderedLess(items, min, p, v) {
 			items[p], items[v] = items[v], items[p]
-			orderedBubbleup(items, isMinHeap(p), p)
 			r = p
 		}
 		i = v
