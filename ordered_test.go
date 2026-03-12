@@ -1430,6 +1430,31 @@ func TestOfferRandomized(t *testing.T) {
 	}
 }
 
+// TestOrderedVerifyInvalid checks that Verify returns false for each of the
+// four classes of min-max heap violation that orderedValid() can detect.
+// The same violation layouts as TestV1VerifyInvalid — shared level structure.
+func TestOrderedVerifyInvalid(t *testing.T) {
+	cases := []struct {
+		name  string
+		items []int
+	}{
+		// Branch A: max-level parent < min-level child (items[1]=2 < items[3]=9).
+		{"max parent < min child", []int{1, 2, 8, 9}},
+		// Branch B: max-level child < min-level parent (items[1]=3 < items[0]=5).
+		{"max child < min parent", []int{5, 3}},
+		// Branch C: min-level grandchild < min-level grandparent (items[3]=3 < items[0]=5).
+		{"min grandchild < min grandparent", []int{5, 10, 8, 3}},
+		// Branch D: max-level grandchild > max-level grandparent (items[7]=9 > items[1]=5).
+		{"max grandchild > max grandparent", []int{1, 5, 8, 2, 4, 6, 7, 9}},
+	}
+	for _, tc := range cases {
+		h := &Deheap[int]{items: tc.items}
+		if h.Verify() {
+			t.Errorf("%s: Verify() = true, want false", tc.name)
+		}
+	}
+}
+
 func BenchmarkOrderedPush(b *testing.B) {
 	r := make([]int, b.N)
 	for i := range r {

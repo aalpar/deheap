@@ -752,6 +752,32 @@ func TestV1PushPopMaxReplaces(t *testing.T) {
 	}
 }
 
+// TestV1PushPopMaxSingle verifies PushPopMax on a single-element heap covers
+// both branches of the l==2 guard: o larger (return o) and o smaller (return
+// the existing element and keep o).
+func TestV1PushPopMaxSingle(t *testing.T) {
+	h := &IntHeap{5}
+	Init(h)
+	if v := PushPopMax(h, 7).(int); v != 7 {
+		t.Fatalf("PushPopMax larger = %d, want 7", v)
+	}
+	if (*h)[0] != 5 {
+		t.Fatalf("remaining = %d, want 5", (*h)[0])
+	}
+
+	h = &IntHeap{5}
+	Init(h)
+	if v := PushPopMax(h, 3).(int); v != 5 {
+		t.Fatalf("PushPopMax smaller = %d, want 5", v)
+	}
+	if (*h)[0] != 3 {
+		t.Fatalf("remaining = %d, want 3", (*h)[0])
+	}
+	if !Verify(h) {
+		t.Fatal("Verify() failed")
+	}
+}
+
 // TestV1PushPopRandomized verifies PushPop against Push+Pop oracle.
 func TestV1PushPopRandomized(t *testing.T) {
 	s := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -1009,6 +1035,37 @@ func TestOps(t *testing.T) {
 
 	}
 
+}
+
+// TestV1VerifyInvalid checks that Verify returns false for each of the four
+// classes of min-max heap violation that valid() can detect.
+//
+// Level layout for reference (even = min, odd = max):
+//
+//	level 0 (min):  index 0
+//	level 1 (max):  indices 1, 2
+//	level 2 (min):  indices 3–6
+//	level 3 (max):  indices 7–14
+func TestV1VerifyInvalid(t *testing.T) {
+	cases := []struct {
+		name  string
+		items IntHeap
+	}{
+		// Branch A: max-level parent < min-level child (items[1]=2 < items[3]=9).
+		{"max parent < min child", IntHeap{1, 2, 8, 9}},
+		// Branch B: max-level child < min-level parent (items[1]=3 < items[0]=5).
+		{"max child < min parent", IntHeap{5, 3}},
+		// Branch C: min-level grandchild < min-level grandparent (items[3]=3 < items[0]=5).
+		{"min grandchild < min grandparent", IntHeap{5, 10, 8, 3}},
+		// Branch D: max-level grandchild > max-level grandparent (items[7]=9 > items[1]=5).
+		{"max grandchild > max grandparent", IntHeap{1, 5, 8, 2, 4, 6, 7, 9}},
+	}
+	for _, tc := range cases {
+		h := &tc.items
+		if Verify(h) {
+			t.Errorf("%s: Verify() = true, want false", tc.name)
+		}
+	}
 }
 
 func BenchmarkMin4(b *testing.B) {

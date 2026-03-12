@@ -4,6 +4,8 @@ GO_BUILD=$(GO) build
 GO_TEST=$(GO) test
 GO_VET=$(GO) vet
 GO_BENCH=$(GO_TEST) -bench .
+COVERAGE_OUT=coverage.out
+COVERAGE_THRESHOLD=90
 GIT=git
 SH_TOOLS_DIR=./tools/sh
 BUILD_VERSION:=$(shell cat ./VERSION 2>/dev/null || echo "v0.0.0")
@@ -22,6 +24,22 @@ test:
 .PHONY: bench
 bench:
 	$(GO_BENCH) ./...
+
+# Generate a coverage profile and open an HTML report.
+#   make cover
+.PHONY: cover
+cover:
+	$(GO_TEST) -coverprofile=$(COVERAGE_OUT) ./...
+	$(GO) tool cover -html=$(COVERAGE_OUT)
+
+# Fail if total statement coverage is below COVERAGE_THRESHOLD percent.
+#   make covercheck
+.PHONY: covercheck
+covercheck:
+	$(GO_TEST) -coverprofile=$(COVERAGE_OUT) ./...
+	@COVERAGE=$$($(GO) tool cover -func=$(COVERAGE_OUT) | grep '^total:' | awk '{print $$3}' | tr -d '%'); \
+	echo "Coverage: $${COVERAGE}%"; \
+	awk "BEGIN { if ($${COVERAGE} + 0 < $(COVERAGE_THRESHOLD)) { print \"FAIL: $${COVERAGE}% is below threshold $(COVERAGE_THRESHOLD)%\"; exit 1 } }"
 
 .PHONY: format
 format:
