@@ -1167,6 +1167,229 @@ func TestDrainDescRandomized(t *testing.T) {
 	}
 }
 
+// TestOfferUnbounded verifies Offer on an unbounded heap behaves like Push.
+func TestOfferUnbounded(t *testing.T) {
+	h := New[int]()
+	evicted, didEvict := h.Offer(5)
+	if didEvict {
+		t.Fatal("Offer on unbounded heap evicted")
+	}
+	var zero int
+	if evicted != zero {
+		t.Fatalf("evicted = %v, want zero", evicted)
+	}
+	if h.Len() != 1 {
+		t.Fatalf("Len = %d, want 1", h.Len())
+	}
+}
+
+// TestOfferUnderCapacity verifies Offer when bounded heap is not full.
+func TestOfferUnderCapacity(t *testing.T) {
+	h := NewBounded[int](5)
+	for i := 0; i < 4; i++ {
+		_, didEvict := h.Offer(i)
+		if didEvict {
+			t.Fatalf("Offer(%d) evicted when under capacity", i)
+		}
+	}
+	if h.Len() != 4 {
+		t.Fatalf("Len = %d, want 4", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestOfferAtCapacityReject verifies Offer rejects elements >= current max.
+func TestOfferAtCapacityReject(t *testing.T) {
+	h := NewBounded[int](3)
+	h.Push(1)
+	h.Push(5)
+	h.Push(3)
+
+	evicted, didEvict := h.Offer(5)
+	if !didEvict {
+		t.Fatal("Offer(5) should evict")
+	}
+	if evicted != 5 {
+		t.Fatalf("evicted = %d, want 5 (rejected)", evicted)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+
+	evicted, didEvict = h.Offer(100)
+	if !didEvict {
+		t.Fatal("Offer(100) should evict")
+	}
+	if evicted != 100 {
+		t.Fatalf("evicted = %d, want 100 (rejected)", evicted)
+	}
+}
+
+// TestOfferAtCapacityEvict verifies Offer evicts the max and inserts o.
+func TestOfferAtCapacityEvict(t *testing.T) {
+	h := NewBounded[int](3)
+	h.Push(1)
+	h.Push(5)
+	h.Push(3)
+
+	evicted, didEvict := h.Offer(2)
+	if !didEvict {
+		t.Fatal("Offer(2) should evict")
+	}
+	if evicted != 5 {
+		t.Fatalf("evicted = %d, want 5", evicted)
+	}
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+	if h.PeekMax() != 3 {
+		t.Fatalf("PeekMax = %d, want 3", h.PeekMax())
+	}
+}
+
+// TestOfferSingleCapacity verifies Offer on a bounded heap of size 1.
+func TestOfferSingleCapacity(t *testing.T) {
+	h := NewBounded[int](1)
+	_, didEvict := h.Offer(5)
+	if didEvict {
+		t.Fatal("first Offer should not evict")
+	}
+
+	evicted, didEvict := h.Offer(3)
+	if !didEvict {
+		t.Fatal("second Offer should evict")
+	}
+	if evicted != 5 {
+		t.Fatalf("evicted = %d, want 5", evicted)
+	}
+	if h.Peek() != 3 {
+		t.Fatalf("Peek = %d, want 3", h.Peek())
+	}
+
+	evicted, didEvict = h.Offer(10)
+	if !didEvict {
+		t.Fatal("Offer(10) should evict")
+	}
+	if evicted != 10 {
+		t.Fatalf("evicted = %d, want 10 (rejected)", evicted)
+	}
+}
+
+// TestFromBoundedUnderCapacity verifies FromBounded with fewer items than maxSize.
+func TestFromBoundedUnderCapacity(t *testing.T) {
+	h := FromBounded[int](5, 1, 3, 2)
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if h.MaxLen() != 5 {
+		t.Fatalf("MaxLen = %d, want 5", h.MaxLen())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestFromBoundedExactCapacity verifies FromBounded with exactly maxSize items.
+func TestFromBoundedExactCapacity(t *testing.T) {
+	h := FromBounded[int](3, 5, 1, 3)
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+}
+
+// TestFromBoundedOverCapacity verifies FromBounded keeps the N smallest elements.
+func TestFromBoundedOverCapacity(t *testing.T) {
+	h := FromBounded[int](3, 9, 1, 7, 3, 5)
+	if h.Len() != 3 {
+		t.Fatalf("Len = %d, want 3", h.Len())
+	}
+	if !h.Verify() {
+		t.Fatal("Verify() failed")
+	}
+	// Should contain the 3 smallest: 1, 3, 5
+	var got []int
+	for v := range h.DrainAsc() {
+		got = append(got, v)
+	}
+	want := []int{1, 3, 5}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("FromBounded drain = %v, want %v", got, want)
+	}
+}
+
+// TestFromBoundedEmpty verifies FromBounded with no items.
+func TestFromBoundedEmpty(t *testing.T) {
+	h := FromBounded[int](5)
+	if h.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", h.Len())
+	}
+	if h.MaxLen() != 5 {
+		t.Fatalf("MaxLen = %d, want 5", h.MaxLen())
+	}
+}
+
+// TestFromBoundedPanicsOnNonPositive verifies FromBounded panics on maxSize <= 0.
+func TestFromBoundedPanicsOnNonPositive(t *testing.T) {
+	for _, v := range []int{0, -1, -100} {
+		func() {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Fatalf("FromBounded(%d) did not panic", v)
+				}
+			}()
+			FromBounded[int](v)
+		}()
+	}
+}
+
+// TestOfferRandomized stress-tests Offer with a sorted-oracle.
+// Builds a bounded heap and streams n values through it, maintaining
+// a sorted-slice oracle of the maxSize smallest values seen.
+func TestOfferRandomized(t *testing.T) {
+	s := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for iter := 0; iter < 1000; iter++ {
+		maxSize := s.Intn(30) + 1
+		n := s.Intn(100) + maxSize
+		h := NewBounded[int](maxSize)
+		var oracle []int
+
+		for i := 0; i < n; i++ {
+			v := s.Intn(n)
+			h.Offer(v)
+			// Insert v into sorted oracle, keep only maxSize smallest.
+			j := sort.SearchInts(oracle, v)
+			oracle = append(oracle, 0)
+			copy(oracle[j+1:], oracle[j:])
+			oracle[j] = v
+			if len(oracle) > maxSize {
+				oracle = oracle[:maxSize]
+			}
+		}
+
+		if h.Len() != len(oracle) {
+			t.Fatalf("iter %d: Len = %d, want %d", iter, h.Len(), len(oracle))
+		}
+		if !h.Verify() {
+			t.Fatalf("iter %d: Verify() failed", iter)
+		}
+		for i, want := range oracle {
+			got := h.Pop()
+			if got != want {
+				t.Fatalf("iter %d: Pop[%d] = %d, want %d", iter, i, got, want)
+			}
+		}
+	}
+}
+
 func BenchmarkOrderedPush(b *testing.B) {
 	r := make([]int, b.N)
 	for i := range r {

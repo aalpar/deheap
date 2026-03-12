@@ -77,6 +77,33 @@ func NewBounded[T cmp.Ordered](maxSize int) *Deheap[T] {
 	return &Deheap[T]{maxSize: maxSize}
 }
 
+// FromBounded constructs a bounded Deheap from the given elements.
+// If more items are provided than maxSize, the largest elements are
+// discarded, keeping only the maxSize smallest.
+//
+// It panics if maxSize <= 0.
+func FromBounded[T cmp.Ordered](maxSize int, items ...T) *Deheap[T] {
+	if maxSize <= 0 {
+		panic("deheap: FromBounded maxSize must be positive")
+	}
+	n := len(items)
+	if n > maxSize {
+		n = maxSize
+	}
+	q := &Deheap[T]{items: make([]T, n), maxSize: maxSize}
+	copy(q.items, items[:n])
+	l := len(q.items)
+	if !orderedValid(q.items, l) {
+		for i := (l - 1) / 2; i >= 0; i-- {
+			orderedBubbledown(q.items, l, isMinHeap(i), i)
+		}
+	}
+	for _, item := range items[n:] {
+		q.Offer(item)
+	}
+	return q
+}
+
 // MaxLen returns the maximum number of elements the heap will hold.
 // Returns 0 for unbounded heaps.
 func (p *Deheap[T]) MaxLen() int {
@@ -225,6 +252,24 @@ func (p *Deheap[T]) PushPopMax(o T) T {
 	p.items[maxIdx] = o
 	p.Fix(maxIdx)
 	return old
+}
+
+// Offer adds o to the heap. If the heap has a maximum size and is at
+// capacity, the largest element is evicted. If o itself is the largest,
+// it is returned immediately without modifying the heap.
+//
+// For unbounded heaps (MaxLen() == 0), Offer behaves like Push and
+// never evicts.
+//
+// Returns the evicted element and true if an eviction occurred, or the
+// zero value and false if o was simply added.
+func (p *Deheap[T]) Offer(o T) (evicted T, didEvict bool) {
+	if p.maxSize == 0 || len(p.items) < p.maxSize {
+		p.Push(o)
+		return evicted, false
+	}
+	evicted = p.PushPopMax(o)
+	return evicted, true
 }
 
 // Len returns the number of elements in the heap.
