@@ -1,0 +1,26 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "deheap",
+  "description": "Doubly-ended heap (min-max heap) for Go: O(1) min/max peek, O(log n) Push, Pop, PopMax, Remove, Fix. Generic and heap.Interface APIs, no dependencies.",
+  "folders": [],
+  "excludeFolders": [".github", "tools"],
+  "excludeFiles": [],
+  "rules": [
+    "Import path is github.com/aalpar/deheap; the module has no dependencies outside the Go standard library.",
+    "For cmp.Ordered element types, use the generic API: deheap.New[T](), deheap.From(items...), then methods on *Deheap[T].",
+    "For custom element types, implement container/heap's heap.Interface and call the package-level functions (deheap.Init, Push, Pop, PopMax, Remove, Fix). Do not call container/heap functions on the same value; they maintain a different invariant.",
+    "Call deheap.Init(h) once on a heap.Interface value built from unordered data before any other deheap function.",
+    "Pop and PopMax on an empty heap return nil (interface API) or the zero value of T (generic API); check Len() first when the zero value is a valid element.",
+    "Peek and PeekMax panic on an empty heap; guard with Len() > 0.",
+    "For a fixed-capacity heap, use NewBounded or FromBounded and insert with Offer, which evicts the largest element when full. Push ignores MaxLen.",
+    "Use PushPop / PushPopMax instead of Push followed by Pop / PopMax; they are cheaper (no slice growth in the generic API, no bubble-up when the pushed element is already the extremum).",
+    "DrainAsc and DrainDesc return iter.Seq[T] and consume the heap; breaking out early leaves the remaining elements in a valid heap.",
+    "After mutating an element in place, call Fix with its index; Remove and Fix take a slice index, not a value."
+  ],
+  "previousVersions": [
+    { "tag": "v1.1.2" },
+    { "tag": "v1.1.1" },
+    { "tag": "v1.1.0" },
+    { "tag": "v1.0.0" }
+  ]
+}
