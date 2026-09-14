@@ -1,0 +1,24 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "deheap",
+  "colors": {
+    "primary": "#00ADD8"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get started",
+        "pages": ["index"]
+      },
+      {
+        "group": "API",
+        "pages": ["generic-api", "interface-api"]
+      },
+      {
+        "group": "Internals",
+        "pages": ["implementation"]
+      }
+    ]
+  }
+}

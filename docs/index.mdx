@@ -1,0 +1,55 @@
+---
+title: Introduction
+description: A doubly-ended heap (min-max heap) for Go.
+---
+
+A doubly-ended heap (min-max heap) for Go. Provides O(log n) access to both
+the minimum and maximum elements of a collection through a single data
+structure, with zero external dependencies.
+
+```bash
+go get github.com/aalpar/deheap
+```
+
+## Why a doubly-ended heap?
+
+A standard binary heap gives you efficient access to one extremum — the
+smallest or the largest element — but not both. Many practical problems need
+both ends simultaneously:
+
+**Scheduling and resource allocation.** Operating system schedulers and job
+queues routinely need the highest-priority task (to run next) and the
+lowest-priority task (to evict or age). A doubly-ended priority queue avoids
+maintaining two separate heaps and the bookkeeping to keep them synchronized.
+
+**Bounded-size caches and buffers.** When a priority queue has a capacity
+limit, insertions must discard the least valuable element. With a min-max
+heap, both the insertion (against the max) and the eviction (from the min, or
+vice versa) are logarithmic — no linear scan required.
+
+**Median maintenance and order statistics.** Streaming median algorithms
+typically partition data into a max-heap of the lower half and a min-heap of
+the upper half. A single min-max heap can serve double duty, simplifying the
+implementation.
+
+**Network packet scheduling.** Rate-controlled and deadline-aware packet
+schedulers (e.g., in QoS systems) need to dequeue by earliest deadline and
+drop by lowest priority, both efficiently.
+
+**Search algorithms.** Algorithms like SMA\* (Simplified Memory-Bounded A\*)
+maintain an open set where the node with the lowest f-cost is expanded next
+and the node with the highest f-cost is pruned when memory is exhausted.
+
+## API surfaces
+
+- [Generic API](/generic-api): `Deheap[T]` for `cmp.Ordered` types.
+- [Interface API](/interface-api): package-level functions over `heap.Interface`, for custom types.
+
+## Requirements
+
+- Go 1.23 or later
+- Zero external dependencies
+
+## License
+
+MIT — see [LICENSE](https://github.com/aalpar/deheap/blob/master/LICENSE).

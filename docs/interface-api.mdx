@@ -1,0 +1,40 @@
+---
+title: Interface API
+description: Package-level functions over heap.Interface for custom types.
+---
+
+For custom types, implement `heap.Interface` and use the package-level
+functions. This is the original v1 API and remains stable.
+
+```go
+import "github.com/aalpar/deheap"
+
+type IntHeap []int
+
+func (h IntHeap) Len() int           { return len(h) }
+func (h IntHeap) Less(i, j int) bool { return h[i] < h[j] }
+func (h IntHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
+func (h *IntHeap) Push(x interface{}) { *h = append(*h, x.(int)) }
+
+func (h *IntHeap) Pop() interface{} {
+    old := *h
+    n := len(old)
+    x := old[n-1]
+    *h = old[:n-1]
+    return x
+}
+
+h := &IntHeap{2, 1, 5, 6}
+deheap.Init(h)
+deheap.Push(h, 3)
+min := deheap.Pop(h)
+max := deheap.PopMax(h)
+
+// Update an element and restore heap order.
+(*h)[0] = 42
+deheap.Fix(h, 0)
+
+// Check if the heap is valid.
+fmt.Println(deheap.Verify(h)) // true
+```

@@ -1,0 +1,39 @@
+---
+title: Generic API
+description: Type-safe Deheap[T] for cmp.Ordered types.
+---
+
+For `cmp.Ordered` types — `int`, `float64`, `string`, and friends — use the
+type-safe generic API directly:
+
+```go
+import "github.com/aalpar/deheap"
+
+// Construct from existing elements.
+h := deheap.From(5, 3, 8, 1, 9)
+
+// Or build incrementally.
+h := deheap.New[int]()
+h.Push(5)
+h.Push(3)
+
+// O(1) access to both extrema.
+fmt.Println(h.Peek())    // smallest
+fmt.Println(h.PeekMax()) // largest
+
+// O(log n) removal from either end.
+min := h.Pop()
+max := h.PopMax()
+
+// Remove by index.
+val := h.Remove(2)
+
+// Update an element and restore heap order.
+h.Push(10)
+h.Push(20)
+// ... mutate the element at index 0 ...
+h.Fix(0)
+
+// Check if the heap is valid.
+fmt.Println(h.Verify()) // true
+```
