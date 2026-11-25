@@ -80,6 +80,25 @@ h.Fix(0)
 
 // Check if the heap is valid.
 fmt.Println(h.Verify()) // true
+
+// Push and pop in one step; cheaper than Push followed by Pop or PopMax.
+smallest := h.PushPop(4)   // smaller of 4 and the current minimum
+largest := h.PushPopMax(7) // larger of 7 and the current maximum
+
+// Bounded heap: Offer evicts the largest element when full.
+// Push ignores the bound.
+b := deheap.NewBounded[int](3)
+for _, v := range []int{5, 1, 9, 3} {
+    if evicted, ok := b.Offer(v); ok {
+        fmt.Println("evicted", evicted) // evicted 9
+    }
+}
+
+// Drain in sorted order (or DrainDesc). Breaking out early leaves the
+// remaining elements in a valid heap.
+for v := range h.DrainAsc() {
+    fmt.Println(v)
+}
 ```
 
 ### Interface API
@@ -111,6 +130,10 @@ deheap.Init(h)
 deheap.Push(h, 3)
 min := deheap.Pop(h)
 max := deheap.PopMax(h)
+
+// Push and pop in one step; cheaper than Push followed by Pop or PopMax.
+min = deheap.PushPop(h, 4)
+max = deheap.PushPopMax(h, 7)
 
 // Update an element and restore heap order.
 (*h)[0] = 42
@@ -146,10 +169,13 @@ and boxing overhead.
 | `Push`    | O(log n) | O(1) amortized |
 | `Pop`     | O(log n) | O(1) |
 | `PopMax`  | O(log n) | O(1) |
+| `PushPop`, `PushPopMax` | O(log n) | O(1) |
+| `Offer`   | O(log n) | O(1) amortized |
 | `Remove`  | O(log n) | O(1) |
 | `Fix`     | O(log n) | O(1) |
 | `Peek`    | O(1)     | O(1) |
 | `PeekMax` | O(1)     | O(1) |
+| `DrainAsc`, `DrainDesc` | O(n log n) | O(1) |
 | `Init`    | O(n)     | O(1) |
 | `Verify`  | O(n)     | O(1) |
 
@@ -240,7 +266,7 @@ PASS
 
 ## Testing
 
-The test suite includes 54 test functions covering internal helpers,
+The test suite includes 90 test functions covering internal helpers,
 algorithmic correctness, edge cases (empty, single-element, two-element
 heaps), and large-scale randomized validation. Six native Go fuzz targets
 (`testing.F`) exercise both API surfaces under arbitrary input. Tests are run
