@@ -45,7 +45,7 @@ and the node with the highest f-cost is pruned when memory is exhausted.
 
 `deheap` provides two API surfaces.
 
-### Generic API (Go 1.21+)
+### Generic API (Go 1.23+)
 
 For `cmp.Ordered` types — `int`, `float64`, `string`, and friends — use the
 type-safe generic API directly:
@@ -244,7 +244,7 @@ The test suite includes 54 test functions covering internal helpers,
 algorithmic correctness, edge cases (empty, single-element, two-element
 heaps), and large-scale randomized validation. Six native Go fuzz targets
 (`testing.F`) exercise both API surfaces under arbitrary input. Tests are run
-against Go 1.21, 1.22, and 1.23 in CI.
+against Go 1.23 and 1.24 in CI.
 
 ```bash
 go test ./...          # run all tests
@@ -254,8 +254,7 @@ go test -fuzz .        # run fuzz tests
 
 ## Requirements
 
-- Go 1.21 or later (generic API)
-- Go 1.13 or later (interface API only)
+- Go 1.23 or later
 - Zero external dependencies
 
 ## References
