@@ -18,6 +18,7 @@
     "After mutating an element in place, call Fix with its index; Remove and Fix take a slice index, not a value."
   ],
   "previousVersions": [
+    { "tag": "v1.2.0" },
     { "tag": "v1.1.2" },
     { "tag": "v1.1.1" },
     { "tag": "v1.1.0" },
