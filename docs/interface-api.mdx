@@ -31,6 +31,10 @@ deheap.Push(h, 3)
 min := deheap.Pop(h)
 max := deheap.PopMax(h)
 
+// Push and pop in one step; cheaper than Push followed by Pop or PopMax.
+min = deheap.PushPop(h, 4)
+max = deheap.PushPopMax(h, 7)
+
 // Update an element and restore heap order.
 (*h)[0] = 42
 deheap.Fix(h, 0)

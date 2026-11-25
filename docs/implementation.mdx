@@ -27,10 +27,13 @@ and boxing overhead.
 | `Push`    | O(log n) | O(1) amortized |
 | `Pop`     | O(log n) | O(1) |
 | `PopMax`  | O(log n) | O(1) |
+| `PushPop`, `PushPopMax` | O(log n) | O(1) |
+| `Offer`   | O(log n) | O(1) amortized |
 | `Remove`  | O(log n) | O(1) |
 | `Fix`     | O(log n) | O(1) |
 | `Peek`    | O(1)     | O(1) |
 | `PeekMax` | O(1)     | O(1) |
+| `DrainAsc`, `DrainDesc` | O(n log n) | O(1) |
 | `Init`    | O(n)     | O(1) |
 | `Verify`  | O(n)     | O(1) |
 
@@ -40,66 +43,74 @@ elements themselves is the slice header (24 bytes on 64-bit systems).
 
 ## Benchmarks
 
-Measured on Apple M4 Max (arm64), Go 1.23:
+Measured on Apple M4 Max (arm64), Go 1.27; each figure is the median of
+five runs.
 
-**Generic API** (`Deheap[T]` — direct `<` comparisons, no interface dispatch):
-
-| Operation   | ns/op  | B/op | allocs/op |
-|-------------|--------|------|-----------|
-| Push        | 12     | 45   | 0         |
-| Pop         | 225    | 0    | 0         |
-| PopMax      | 225    | 0    | 0         |
-
-**Interface API** (v1 — `heap.Interface`):
+**Generic API** (`Deheap[T]`, direct `<` comparisons, no interface dispatch):
 
 | Operation   | ns/op  | B/op | allocs/op |
 |-------------|--------|------|-----------|
-| Push        | 21     | 54   | 0         |
-| Pop         | 288    | 7    | 0         |
-| PopMax      | 282    | 7    | 0         |
+| Push        | 12     | 46   | 0         |
+| Pop         | 190    | 0    | 0         |
+| PopMax      | 187    | 0    | 0         |
+
+**Interface API** (v1, `heap.Interface`):
+
+| Operation   | ns/op  | B/op | allocs/op |
+|-------------|--------|------|-----------|
+| Push        | 20     | 51   | 0         |
+| Pop         | 260    | 7    | 0         |
+| PopMax      | 255    | 7    | 0         |
 
 **Standard library** (`container/heap`) for comparison:
 
 | Operation   | ns/op  | B/op | allocs/op |
 |-------------|--------|------|-----------|
-| Push        | 22     | 55   | 0         |
-| Pop         | 208    | 7    | 0         |
+| Push        | 21     | 53   | 0         |
+| Pop         | 189    | 7    | 0         |
 
-The generic API is faster than `container/heap` on Push. Pop is ~8% slower
-due to examining up to four grandchildren per node (vs two children in a
-binary heap), but provides O(log n) access to both extrema. The v1 interface
-API pays the same `heap.Interface` dispatch cost as `container/heap`. All
-operations are zero-allocation in steady state.
+The generic API is faster than `container/heap` on Push and on par with it on
+Pop, despite examining up to four grandchildren per node (vs two children in a
+binary heap), while also providing O(log n) access to the maximum. The v1
+interface API pays the same `heap.Interface` dispatch cost as
+`container/heap`. Generic API operations are zero-allocation in steady state.
 
 ### Benchmark descriptions
 
 The benchmarks compare deheap's two API surfaces against each other and
 against `container/heap`. Baseline measurements isolate the cost of slice
-operations from heap logic. All benchmarks use a heap of 10,000 `int`
-elements to ensure the working set fits in L1 cache while exercising the
-full tree depth.
+operations from heap logic. Unless noted, benchmarks use a heap of 10,000
+`int` elements to ensure the working set fits in L1 cache while exercising
+the full tree depth.
 
-Sample run (Apple M4 Max, Go 1.23):
+Sample run (median run of five per benchmark):
 
-```text
+```
 $ go test -bench . -benchmem
 goos: darwin
 goarch: arm64
 pkg: github.com/aalpar/deheap
 cpu: Apple M4 Max
-BenchmarkMin4-16              	261428533	         4.784 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBaselinePush-16      	1000000000	         6.411 ns/op	      42 B/op	       0 allocs/op
-BenchmarkPush-16              	44383689	        23.16 ns/op	      50 B/op	       0 allocs/op
-BenchmarkPop-16               	 5666707	       326.3 ns/op	       7 B/op	       0 allocs/op
-BenchmarkPopMax-16            	 5644575	       319.7 ns/op	       7 B/op	       0 allocs/op
-BenchmarkPushPop-16           	 5098502	       297.2 ns/op	      65 B/op	       1 allocs/op
-BenchmarkHeapPushPop-16       	 6203408	       256.5 ns/op	      56 B/op	       1 allocs/op
-BenchmarkHeapPop-16           	 8475319	       234.7 ns/op	       7 B/op	       0 allocs/op
-BenchmarkHeapPush-16          	46837188	        21.57 ns/op	      48 B/op	       0 allocs/op
-BenchmarkOrderedPush-16       	100000000	        12.38 ns/op	      45 B/op	       0 allocs/op
-BenchmarkOrderedPop-16        	 8680756	       249.4 ns/op	       0 B/op	       0 allocs/op
-BenchmarkOrderedPopMax-16     	10103798	       237.3 ns/op	       0 B/op	       0 allocs/op
-BenchmarkOrderedPushPop-16    	 8926204	       233.2 ns/op	      44 B/op	       0 allocs/op
+BenchmarkMin4-16                        	262670930	         4.548 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBaselinePush-16                	796840660	         2.456 ns/op	      42 B/op	       0 allocs/op
+BenchmarkPush-16                        	54124554	        19.70 ns/op	      51 B/op	       0 allocs/op
+BenchmarkPop-16                         	 6313336	       260.3 ns/op	       7 B/op	       0 allocs/op
+BenchmarkPopMax-16                      	 6505016	       255.0 ns/op	       7 B/op	       0 allocs/op
+BenchmarkPushPop-16                     	 5705757	       270.3 ns/op	      60 B/op	       1 allocs/op
+BenchmarkHeapPushPop-16                 	 6924955	       217.0 ns/op	      61 B/op	       1 allocs/op
+BenchmarkHeapPop-16                     	 9926960	       188.6 ns/op	       7 B/op	       0 allocs/op
+BenchmarkHeapPush-16                    	51842851	        21.10 ns/op	      53 B/op	       0 allocs/op
+BenchmarkV1PushPop-16                   	59951672	        20.36 ns/op	      15 B/op	       1 allocs/op
+BenchmarkV1PushPopMax-16                	55412994	        21.38 ns/op	      15 B/op	       1 allocs/op
+BenchmarkOrderedPush-16                 	99061327	        11.58 ns/op	      46 B/op	       0 allocs/op
+BenchmarkOrderedPop-16                  	 9352300	       190.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOrderedPopMax-16               	 9542306	       187.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOrderedPushPop-16              	 8619138	       205.0 ns/op	      45 B/op	       0 allocs/op
+BenchmarkOrderedGenericPushPop-16       	359725708	         3.294 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOrderedGenericPushPopMax-16    	297904705	         3.889 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOrderedDrainAsc-16             	    2322	    536634 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOrderedDrainDesc-16            	    2605	    443729 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOrderedOffer-16                	265210098	         4.496 ns/op	       0 B/op	       0 allocs/op
 PASS
 ```
 
@@ -109,12 +120,19 @@ PASS
 | `OrderedPop` | Generic `Deheap[int].Pop`: remove minimum and bubble-down with direct `<`. |
 | `OrderedPopMax` | Generic `Deheap[int].PopMax`: remove maximum and bubble-down with direct `<`. |
 | `OrderedPushPop` | Generic push-then-drain throughput. |
+| `OrderedGenericPushPop` | Generic `PushPop`. Each call removes the minimum, so the heap converges to the largest values seen and nearly every input takes the early return (input ≤ minimum). Measures that fast path, not the bubble-down case. |
+| `OrderedGenericPushPopMax` | Generic `PushPopMax`. Mirror of the above: the heap converges to the smallest values, so nearly every input takes the early return (input ≥ maximum). |
+| `OrderedDrainAsc` | Full `DrainAsc` of a 10,000-element heap; ns/op is per drain (about 54 ns per element). |
+| `OrderedDrainDesc` | Full `DrainDesc` of a 10,000-element heap; ns/op is per drain (about 44 ns per element). |
+| `OrderedOffer` | `Offer` on a full bounded heap of 1,000. The heap converges to the smallest values seen, so nearly every input is rejected without modifying the heap. |
 | `Min4` | Cost of `min4`, the internal function that finds the extremum among up to 4 grandchildren during bubble-down. |
-| `BaselinePush` | Raw slice append with no heap ordering — establishes the floor cost of memory allocation and copying. |
+| `BaselinePush` | Raw slice append with no heap ordering; establishes the floor cost of memory allocation and copying. |
 | `Push` | `deheap.Push` (v1): append + bubble-up via `heap.Interface`. |
 | `Pop` | `deheap.Pop` (v1): remove the minimum element and bubble-down via `heap.Interface`. |
 | `PopMax` | `deheap.PopMax` (v1): remove the maximum element and bubble-down via `heap.Interface`. |
 | `PushPop` | v1 push-then-drain throughput. |
+| `V1PushPop` | `deheap.PushPop` (v1); same early-return fast path as `OrderedGenericPushPop`. |
+| `V1PushPopMax` | `deheap.PushPopMax` (v1); same early-return fast path as `OrderedGenericPushPopMax`. |
 | `HeapPushPop` | Same push-then-drain pattern using `container/heap` for direct comparison. |
 | `HeapPop` | `container/heap.Pop` in isolation, comparable to `Pop` above. |
 | `HeapPush` | `container/heap.Push` in isolation, comparable to `Push` above. |
